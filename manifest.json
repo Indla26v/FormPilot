@@ -19,7 +19,13 @@
     "https://api.openai.com/*",
     "https://api.anthropic.com/*",
     "https://*.google.com/forms/*",
-    "https://forms.gle/*"
+    "https://forms.gle/*",
+    "https://forms.cloud.microsoft/*",
+    "https://*.forms.cloud.microsoft/*",
+    "https://forms.office.com/*",
+    "https://*.forms.office.com/*",
+    "https://forms.microsoft.com/*",
+    "https://*.forms.microsoft.com/*"
   ],
   "background": {
     "service_worker": "src/background/background.js"
@@ -42,7 +48,13 @@
       "matches": [
         "https://docs.google.com/forms/*",
         "https://*.google.com/forms/*",
-        "https://forms.gle/*"
+        "https://forms.gle/*",
+        "https://forms.cloud.microsoft/*",
+        "https://*.forms.cloud.microsoft/*",
+        "https://forms.office.com/*",
+        "https://*.forms.office.com/*",
+        "https://forms.microsoft.com/*",
+        "https://*.forms.microsoft.com/*"
       ],
       "js": [
         "src/content/content.js"

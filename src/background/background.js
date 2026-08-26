@@ -10,9 +10,18 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: 'gfaf_fill_form',
-      title: 'Auto-fill with GFAF',
+      title: 'Auto-fill with FormPilot',
       contexts: ['page', 'editable'],
-      documentUrlPatterns: ['*://docs.google.com/forms/*', '*://forms.gle/*']
+      documentUrlPatterns: [
+        '*://docs.google.com/forms/*',
+        '*://forms.gle/*',
+        '*://forms.cloud.microsoft/*',
+        '*://*.forms.cloud.microsoft/*',
+        '*://forms.office.com/*',
+        '*://*.forms.office.com/*',
+        '*://forms.microsoft.com/*',
+        '*://*.forms.microsoft.com/*'
+      ]
     });
 
     chrome.contextMenus.create({

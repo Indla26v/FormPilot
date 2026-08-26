@@ -967,13 +967,23 @@
     static extractQuestionText(containerEl) {
       if (!containerEl) return '';
       let title = '';
-      const headingEl = containerEl.querySelector('div[role="heading"]');
-      if (headingEl) {
-        title = (headingEl.innerText || headingEl.textContent || '').trim();
-      } else {
-        const titleEl = containerEl.querySelector('.M7eMe, .HoPJnd, .F9N7Re, span[dir="auto"]');
-        if (titleEl) {
-          title = (titleEl.innerText || titleEl.textContent || '').trim();
+
+      // 1. Check Microsoft Forms title elements
+      const msTitleEl = containerEl.querySelector('span[data-automation-id="questionTitle"], div[data-automation-id="questionTitle"], .office-form-question-title, .question-title-box, .text-format-content, span.question-title-text');
+      if (msTitleEl) {
+        title = (msTitleEl.innerText || msTitleEl.textContent || '').trim();
+      }
+
+      // 2. Check Google Forms heading & title elements
+      if (!title) {
+        const headingEl = containerEl.querySelector('div[role="heading"]');
+        if (headingEl) {
+          title = (headingEl.innerText || headingEl.textContent || '').trim();
+        } else {
+          const titleEl = containerEl.querySelector('.M7eMe, .HoPJnd, .F9N7Re, span[dir="auto"]');
+          if (titleEl) {
+            title = (titleEl.innerText || titleEl.textContent || '').trim();
+          }
         }
       }
 
@@ -982,18 +992,21 @@
         title = (inputWithLabel.getAttribute('aria-label') || '').trim();
       }
 
-      // Also extract sub-description / prompt instructions if present in Google Form
-      const descEl = containerEl.querySelector('.gHjhdc, .jibhHc, .vRMGwf, .asQ4ud, div[id$="_desc"], div[jsname="V67aGc"]');
+      // Also extract sub-description / prompt instructions if present
+      const descEl = containerEl.querySelector('span[data-automation-id="questionSubTitle"], .office-form-question-subtitle, .gHjhdc, .jibhHc, .vRMGwf, .asQ4ud, div[id$="_desc"], div[jsname="V67aGc"]');
       let desc = '';
       if (descEl) {
         desc = (descEl.innerText || descEl.textContent || '').trim();
       }
 
-      if (title && desc && !title.includes(desc)) {
-        return `${title}\n${desc}`;
+      // Clean leading numbering (e.g. "1. Full Name" -> "Full Name")
+      const cleanTitle = title.replace(/^\s*\d+[\.\)\s]+\s*/, '').trim();
+
+      if (cleanTitle && desc && !cleanTitle.includes(desc)) {
+        return `${cleanTitle}\n${desc}`;
       }
 
-      return title || '';
+      return cleanTitle || title || '';
     }
 
     static isOpenEndedQuestion(questionText, targetEl) {
@@ -1128,16 +1141,26 @@
     }
 
     static extractRadioOptions(containerEl) {
-      const radioElements = containerEl.querySelectorAll('div[role="radio"]');
+      const radioElements = containerEl.querySelectorAll('div[role="radio"], input[type="radio"], div[data-automation-id="choiceItem"], label.ms-Radio-field');
       const options = [];
       radioElements.forEach((radio) => {
-        const dataVal = radio.getAttribute('data-value');
-        const ariaLabel = radio.getAttribute('aria-label');
+        if (radio.tagName === 'INPUT' && radio.type === 'checkbox') return;
+        if (radio.getAttribute && radio.getAttribute('role') === 'checkbox') return;
+
+        const dataVal = radio.getAttribute ? radio.getAttribute('data-value') : '';
+        const ariaLabel = radio.getAttribute ? radio.getAttribute('aria-label') : '';
+        const msChoiceLabel = radio.querySelector ? radio.querySelector('span[data-automation-id="choiceLabel"], span.office-form-question-choice-text') : null;
         let text = '';
-        const textContainer = radio.closest('label') || radio.parentElement;
-        if (textContainer) text = textContainer.innerText || textContainer.textContent || '';
-        const finalLabel = (dataVal || ariaLabel || text || '').trim();
-        if (finalLabel) options.push({ element: radio, label: finalLabel });
+        if (msChoiceLabel) {
+          text = msChoiceLabel.innerText || msChoiceLabel.textContent || '';
+        } else {
+          const textContainer = radio.closest ? radio.closest('label') || radio.parentElement : radio.parentElement;
+          if (textContainer) text = textContainer.innerText || textContainer.textContent || '';
+        }
+        const finalLabel = (dataVal || ariaLabel || text || radio.value || '').trim();
+        if (finalLabel && !options.some((o) => o.label === finalLabel)) {
+          options.push({ element: radio, label: finalLabel });
+        }
       });
       return options;
     }
@@ -1145,13 +1168,26 @@
     static selectRadio(radioEl) {
       if (!radioEl) return false;
       try {
-        const isAlreadyChecked = radioEl.getAttribute('aria-checked') === 'true';
-        if (!isAlreadyChecked) {
-          radioEl.focus();
+        if (radioEl.tagName === 'INPUT' && radioEl.type === 'radio') {
+          radioEl.checked = true;
           radioEl.click();
+          radioEl.dispatchEvent(new Event('change', { bubbles: true }));
+          radioEl.dispatchEvent(new Event('input', { bubbles: true }));
+          return true;
+        }
+        const isAlreadyChecked = radioEl.getAttribute && radioEl.getAttribute('aria-checked') === 'true';
+        if (!isAlreadyChecked) {
+          if (radioEl.focus) radioEl.focus();
+          if (radioEl.click) radioEl.click();
+          const innerInput = radioEl.querySelector ? radioEl.querySelector('input[type="radio"]') : null;
+          if (innerInput) {
+            innerInput.checked = true;
+            innerInput.click();
+            innerInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
           radioEl.dispatchEvent(new Event('click', { bubbles: true }));
           radioEl.dispatchEvent(new Event('change', { bubbles: true }));
-          radioEl.setAttribute('aria-checked', 'true');
+          if (radioEl.setAttribute) radioEl.setAttribute('aria-checked', 'true');
         }
         return true;
       } catch {
@@ -1160,15 +1196,22 @@
     }
 
     static extractCheckboxOptions(containerEl) {
-      const checkboxElements = containerEl.querySelectorAll('div[role="checkbox"]');
+      const checkboxElements = containerEl.querySelectorAll('div[role="checkbox"], input[type="checkbox"], label.ms-Checkbox-field');
       const options = [];
       checkboxElements.forEach((checkbox) => {
-        const ariaLabel = checkbox.getAttribute('aria-label');
+        const ariaLabel = checkbox.getAttribute ? checkbox.getAttribute('aria-label') : '';
+        const msChoiceLabel = checkbox.querySelector ? checkbox.querySelector('span[data-automation-id="choiceLabel"], span.office-form-question-choice-text') : null;
         let text = '';
-        const textContainer = checkbox.closest('label') || checkbox.parentElement;
-        if (textContainer) text = textContainer.innerText || textContainer.textContent || '';
-        const finalLabel = (ariaLabel || text || '').trim();
-        if (finalLabel) options.push({ element: checkbox, label: finalLabel });
+        if (msChoiceLabel) {
+          text = msChoiceLabel.innerText || msChoiceLabel.textContent || '';
+        } else {
+          const textContainer = checkbox.closest ? checkbox.closest('label') || checkbox.parentElement : checkbox.parentElement;
+          if (textContainer) text = textContainer.innerText || textContainer.textContent || '';
+        }
+        const finalLabel = (ariaLabel || text || checkbox.value || '').trim();
+        if (finalLabel && !options.some((o) => o.label === finalLabel)) {
+          options.push({ element: checkbox, label: finalLabel });
+        }
       });
       return options;
     }
@@ -1176,13 +1219,28 @@
     static selectCheckbox(checkboxEl) {
       if (!checkboxEl) return false;
       try {
-        const isChecked = checkboxEl.getAttribute('aria-checked') === 'true';
+        if (checkboxEl.tagName === 'INPUT' && checkboxEl.type === 'checkbox') {
+          if (!checkboxEl.checked) {
+            checkboxEl.checked = true;
+            checkboxEl.click();
+            checkboxEl.dispatchEvent(new Event('change', { bubbles: true }));
+            checkboxEl.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          return true;
+        }
+        const isChecked = checkboxEl.getAttribute && checkboxEl.getAttribute('aria-checked') === 'true';
         if (!isChecked) {
-          checkboxEl.focus();
-          checkboxEl.click();
+          if (checkboxEl.focus) checkboxEl.focus();
+          if (checkboxEl.click) checkboxEl.click();
+          const innerInput = checkboxEl.querySelector ? checkboxEl.querySelector('input[type="checkbox"]') : null;
+          if (innerInput && !innerInput.checked) {
+            innerInput.checked = true;
+            innerInput.click();
+            innerInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
           checkboxEl.dispatchEvent(new Event('click', { bubbles: true }));
           checkboxEl.dispatchEvent(new Event('change', { bubbles: true }));
-          checkboxEl.setAttribute('aria-checked', 'true');
+          if (checkboxEl.setAttribute) checkboxEl.setAttribute('aria-checked', 'true');
         }
         return true;
       } catch {
@@ -1191,6 +1249,11 @@
     }
 
     static findQuestionContainers(root = document) {
+      // 1. Microsoft Forms containers
+      const msContainers = root.querySelectorAll('div[data-automation-id="questionItem"], div[data-automation-key="questionItem"], div.office-form-question, div.question-container, div[data-automation-id="questionWrapper"]');
+      if (msContainers && msContainers.length > 0) return Array.from(msContainers);
+
+      // 2. Google Forms standard containers
       const list = root.querySelectorAll('div[role="listitem"]');
       if (list && list.length > 0) return Array.from(list);
       const qContainers = root.querySelectorAll('div[jsmodel="CP1oW"]');
@@ -1199,11 +1262,13 @@
       if (altItems && altItems.length > 0) return Array.from(altItems);
       const items = root.querySelectorAll('div[jscontroller="e2CuFe"], div[jscontroller="r3Nsxc"]');
       if (items && items.length > 0) return Array.from(items);
-      const headings = root.querySelectorAll('div[role="heading"]');
+
+      // 3. Generic Headings Fallback
+      const headings = root.querySelectorAll('div[role="heading"], span[data-automation-id="questionTitle"]');
       if (headings && headings.length > 0) {
         const containers = [];
         headings.forEach((h) => {
-          const parent = h.closest('div[jscontroller]') || h.parentElement?.parentElement;
+          const parent = h.closest('div[jscontroller], div[data-automation-id="questionItem"], div.office-form-question') || h.parentElement?.parentElement;
           if (parent && !containers.includes(parent)) containers.push(parent);
         });
         return containers;
@@ -1660,7 +1725,7 @@ Directly tailor and align the candidate's matching experience, technologies, and
 
       containers.forEach((container) => {
         const questionText = this.extractQuestionText(container);
-        const targetEl = container.querySelector('textarea.KHxj8b, textarea[jsname="YPqjbf"], textarea, input.whsOnd, input[type="text"], input[type="email"], input[type="tel"], input[type="number"]');
+        const targetEl = container.querySelector('textarea[data-automation-id="textInput"], textarea.office-form-question-textarea, textarea.KHxj8b, textarea[jsname="YPqjbf"], textarea, input[data-automation-id="textInput"], input.office-form-question-textbox, input.whsOnd, input[type="text"], input[type="email"], input[type="tel"], input[type="number"], input[type="url"]');
         if (targetEl && questionText) {
           this.attachAiColumnButton(container, targetEl, questionText, profile);
           attachedCount++;
@@ -1695,8 +1760,8 @@ Directly tailor and align the candidate's matching experience, technologies, and
           continue;
         }
 
-        const textInput = container.querySelector('input.whsOnd, input[type="text"], input[type="email"], input[type="tel"], input[type="number"]');
-        const textareaInput = container.querySelector('textarea.KHxj8b, textarea[jsname="YPqjbf"], textarea');
+        const textInput = container.querySelector('input[data-automation-id="textInput"], input.office-form-question-textbox, input.whsOnd, input[type="text"], input[type="email"], input[type="tel"], input[type="number"], input[type="url"]');
+        const textareaInput = container.querySelector('textarea[data-automation-id="textInput"], textarea.office-form-question-textarea, textarea.KHxj8b, textarea[jsname="YPqjbf"], textarea');
         const radioOptions = this.extractRadioOptions(container);
         const checkboxOptions = this.extractCheckboxOptions(container);
 

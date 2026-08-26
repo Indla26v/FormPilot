@@ -83,8 +83,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       const url = activeTab.url || '';
-      if (!url.includes('docs.google.com/forms') && !url.includes('forms.gle')) {
-        showToast('Please open a Google Form tab');
+      const isFormPage =
+        url.includes('docs.google.com/forms') ||
+        url.includes('forms.gle') ||
+        url.includes('forms.cloud.microsoft') ||
+        url.includes('forms.office.com') ||
+        url.includes('forms.microsoft.com');
+
+      if (!isFormPage) {
+        showToast('Please open a Google Form or Microsoft Form tab');
         return;
       }
 

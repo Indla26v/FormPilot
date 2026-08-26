@@ -1,6 +1,6 @@
-# FormPilot — AI Google Forms Auto-Filler & RAG Assistant
+# FormPilot — AI Forms Auto-Filler & RAG Assistant (Google Forms & Microsoft Forms)
 
-A smart, modern Manifest V3 Chrome Extension designed specifically for candidates, job seekers, and developers to auto-fill Google Forms. Features **instant profile matching**, **clean numeric vs text formatting**, **Job Description (JD) target alignment**, and **Retrieval-Augmented Generation (RAG)** using your uploaded **Resume** and **GitHub Project `README.md` files** powered by **Local Ollama (100% Free & Offline)**, Google Gemini, OpenAI, or Claude.
+A smart, modern Manifest V3 Chrome Extension designed specifically for candidates, job seekers, and developers to auto-fill **Google Forms** and **Microsoft Forms (`forms.cloud.microsoft`, `forms.office.com`)**. Features **instant profile matching**, **clean numeric vs text formatting**, **Job Description (JD) target alignment**, and **Retrieval-Augmented Generation (RAG)** using your uploaded **Resume** and **GitHub Project `README.md` files** powered by **Local Ollama (100% Free & Offline)**, Google Gemini, OpenAI, or Claude.
 
 ---
 
