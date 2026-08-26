@@ -1086,6 +1086,47 @@
       }
     }
 
+    /**
+     * Animate typing text into input/textarea word-by-word with natural streaming cadence
+     */
+    static async typewriteInputValue(inputEl, fullText, speedMs = 18) {
+      if (!inputEl || !fullText) return false;
+      const text = String(fullText);
+      const words = text.split(/(\s+)/); // Preserves words and whitespace
+      let accumulated = '';
+
+      try {
+        inputEl.focus();
+      } catch {}
+
+      for (let i = 0; i < words.length; i++) {
+        accumulated += words[i];
+        this.setInputValue(inputEl, accumulated);
+
+        try {
+          if (inputEl.scrollHeight > inputEl.clientHeight) {
+            inputEl.scrollTop = inputEl.scrollHeight;
+          }
+        } catch {}
+
+        // Only delay after actual word tokens (not empty / whitespace)
+        if (words[i].trim().length > 0 && i < words.length - 1) {
+          let delay = speedMs;
+          const lastChar = words[i].slice(-1);
+          if (['.', '!', '?', ';'].includes(lastChar)) {
+            delay = speedMs * 3;
+          } else if ([',', ':', '-'].includes(lastChar)) {
+            delay = speedMs * 1.8;
+          }
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+
+      // Final pass to guarantee 100% full text integrity
+      this.setInputValue(inputEl, text);
+      return true;
+    }
+
     static extractRadioOptions(containerEl) {
       const radioElements = containerEl.querySelectorAll('div[role="radio"]');
       const options = [];
@@ -1428,7 +1469,7 @@ Directly tailor and align the candidate's matching experience, technologies, and
 
           const newAnswer = await LocalFillerService.synthesizeAiAnswer(questionText, profile, userComment, currentVal);
           if (newAnswer) {
-            LocalFillerService.setInputValue(targetEl, newAnswer);
+            await LocalFillerService.typewriteInputValue(targetEl, newAnswer);
             commentInput.value = '';
             commentInput.placeholder = "Follow-up revision instruction (e.g. 'shorten to 60 words')...";
             showToast('Answer refined with conversational memory!');
@@ -1520,7 +1561,7 @@ Directly tailor and align the candidate's matching experience, technologies, and
             const generated = await LocalFillerService.synthesizeAiAnswer(questionText, profile, '', currentVal);
 
             if (generated && generated.trim()) {
-              LocalFillerService.setInputValue(targetEl, generated.trim());
+              await LocalFillerService.typewriteInputValue(targetEl, generated.trim());
               LocalFillerService.highlightContainer(containerEl, { confidence: 0.98, isRag: true });
               btn.classList.remove('loading');
               btn.classList.add('active');
@@ -1689,7 +1730,7 @@ Directly tailor and align the candidate's matching experience, technologies, and
         if (!targetEl.value || !targetEl.value.trim()) {
           const generatedAnswer = await this.synthesizeAiAnswer(questionText, profile);
           if (generatedAnswer && generatedAnswer.trim()) {
-            const success = this.setInputValue(targetEl, generatedAnswer.trim());
+            const success = await this.typewriteInputValue(targetEl, generatedAnswer.trim());
             if (success) {
               results.filledCount++;
               if (settings.autoHighlight !== false) {

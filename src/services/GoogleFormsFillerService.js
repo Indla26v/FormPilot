@@ -147,6 +147,47 @@ export class GoogleFormsFillerService {
   }
 
   /**
+   * Animate typing text into input/textarea word-by-word with natural streaming cadence
+   */
+  static async typewriteInputValue(inputEl, fullText, speedMs = 18) {
+    if (!inputEl || !fullText) return false;
+    const text = String(fullText);
+    const words = text.split(/(\s+)/); // Preserves words and whitespace
+    let accumulated = '';
+
+    try {
+      inputEl.focus();
+    } catch {}
+
+    for (let i = 0; i < words.length; i++) {
+      accumulated += words[i];
+      this.setInputValue(inputEl, accumulated);
+
+      try {
+        if (inputEl.scrollHeight > inputEl.clientHeight) {
+          inputEl.scrollTop = inputEl.scrollHeight;
+        }
+      } catch {}
+
+      // Only delay after actual word tokens (not empty / whitespace)
+      if (words[i].trim().length > 0 && i < words.length - 1) {
+        let delay = speedMs;
+        const lastChar = words[i].slice(-1);
+        if (['.', '!', '?', ';'].includes(lastChar)) {
+          delay = speedMs * 3;
+        } else if ([',', ':', '-'].includes(lastChar)) {
+          delay = speedMs * 1.8;
+        }
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+
+    // Final pass to guarantee 100% full text integrity
+    this.setInputValue(inputEl, text);
+    return true;
+  }
+
+  /**
    * Extract available options for a Radio Group
    */
   static extractRadioOptions(containerEl) {
@@ -346,7 +387,7 @@ export class GoogleFormsFillerService {
             });
 
             if (generated && generated.trim()) {
-              GoogleFormsFillerService.setInputValue(targetEl, generated.trim());
+              await GoogleFormsFillerService.typewriteInputValue(targetEl, generated.trim());
               GoogleFormsFillerService.highlightContainer(containerEl, { confidence: 0.98, isRag: true });
               btn.classList.remove('loading');
               btn.classList.add('active');
@@ -456,7 +497,7 @@ export class GoogleFormsFillerService {
           });
 
           if (newAnswer) {
-            GoogleFormsFillerService.setInputValue(targetEl, newAnswer);
+            await GoogleFormsFillerService.typewriteInputValue(targetEl, newAnswer);
           }
         } catch (e) {
           console.warn('[GFAF] Re-generate error:', e);
@@ -642,7 +683,7 @@ export class GoogleFormsFillerService {
             });
 
             if (generated && generated.trim()) {
-              const success = this.setInputValue(targetEl, generated.trim());
+              const success = await this.typewriteInputValue(targetEl, generated.trim());
               if (success) {
                 results.filledCount++;
                 if (settings.autoHighlight !== false) {
