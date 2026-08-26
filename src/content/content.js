@@ -1808,10 +1808,16 @@ Question:
       const item = document.createElement('div');
       item.className = `gfaf-dropdown-item ${p.id === activeProfile?.id ? 'active' : ''}`;
       item.setAttribute('data-id', p.id);
-      item.innerHTML = `
-        <span class="gfaf-item-dot"></span>
-        <span class="gfaf-item-text">${p.name}</span>
-      `;
+
+      const dot = document.createElement('span');
+      dot.className = 'gfaf-item-dot';
+
+      const textSpan = document.createElement('span');
+      textSpan.className = 'gfaf-item-text';
+      textSpan.textContent = p.name || 'Untitled Profile';
+
+      item.appendChild(dot);
+      item.appendChild(textSpan);
 
       item.addEventListener('click', async (e) => {
         e.stopPropagation();

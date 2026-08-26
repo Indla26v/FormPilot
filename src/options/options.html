@@ -673,16 +673,23 @@
 
           <div class="section-card">
             <h3 class="section-title">Backup & Restore</h3>
-            <p class="section-sub">Export your entire profiles database as a JSON file or import a backup.</p>
+            <p class="section-sub">Export your entire profiles database securely as JSON (API keys redacted by default) or encrypted with password protection.</p>
             <div class="backup-actions-row">
-              <button type="button" class="pill-btn pill-btn-secondary" id="btn-export-backup">
+              <button type="button" class="pill-btn pill-btn-secondary" id="btn-export-backup" title="Export clean JSON backup (API keys redacted for safe sharing)">
                 <span class="btn-icon" id="icon-export"></span>
-                <span>Export JSON Backup</span>
+                <span>Export JSON Backup (Safe)</span>
               </button>
-              <label class="pill-btn pill-btn-secondary file-upload-btn" for="input-import-file">
+              <button type="button" class="pill-btn pill-btn-secondary" id="btn-export-encrypted" title="Export AES-256 password-protected backup">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <span>Export Encrypted (.gfaf.enc)</span>
+              </button>
+              <label class="pill-btn pill-btn-secondary file-upload-btn" for="input-import-file" title="Import JSON or encrypted .gfaf.enc backup">
                 <span class="btn-icon" id="icon-import"></span>
-                <span>Import JSON Backup</span>
-                <input type="file" id="input-import-file" accept=".json" style="display: none;" />
+                <span>Import Backup File</span>
+                <input type="file" id="input-import-file" accept=".json,.enc,.gfaf.enc" style="display: none;" />
               </label>
             </div>
           </div>

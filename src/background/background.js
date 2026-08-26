@@ -47,8 +47,41 @@ chrome.commands.onCommand.addListener((command) => {
   }
 });
 
+// Strict allowlist of permissible proxy destination hosts (matching manifest host_permissions)
+const ALLOWED_PROXY_HOSTS = new Set([
+  'localhost:11434',
+  '127.0.0.1:11434',
+  'api.openai.com',
+  'api.anthropic.com',
+  'generativelanguage.googleapis.com',
+  'api.github.com',
+  'raw.githubusercontent.com'
+]);
+
+function isAllowedProxyUrl(urlString) {
+  if (!urlString || typeof urlString !== 'string') return false;
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol === 'https:') {
+      return ALLOWED_PROXY_HOSTS.has(parsed.host);
+    }
+    if (parsed.protocol === 'http:') {
+      return parsed.host === 'localhost:11434' || parsed.host === '127.0.0.1:11434';
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 // Handle Message Routing & Proxy Fetching
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Validate sender
+  if (sender && sender.id && sender.id !== chrome.runtime.id) {
+    sendResponse({ success: false, error: 'Unauthorized sender origin' });
+    return;
+  }
+
   if (message.action === 'OPEN_OPTIONS_PAGE' || message.action === 'OPEN_OPTIONS') {
     chrome.runtime.openOptionsPage();
     sendResponse({ success: true });
@@ -57,6 +90,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Proxy fetch for GitHub READMEs
   if (message.action === 'FETCH_GITHUB_RAW') {
+    if (!isAllowedProxyUrl(message.url) || !message.url.startsWith('https://raw.githubusercontent.com/')) {
+      sendResponse({ success: false, error: 'Security violation: destination URL is not an allowed GitHub raw repository.' });
+      return true;
+    }
+
     fetch(message.url)
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -67,9 +105,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // Proxy Ollama / LLM API calls to bypass Content Security Policy and Mixed Content in content scripts
+  // Proxy Ollama / LLM API calls with strict host allowlist validation
   if (message.action === 'PROXY_FETCH' || message.action === 'GENERATE_LLM_RAG') {
     const endpoint = message.url || message.endpoint;
+    
+    if (!isAllowedProxyUrl(endpoint)) {
+      sendResponse({ success: false, error: `Security violation: destination host is not in allowed proxy list.` });
+      return true;
+    }
+
     const options = message.options || {};
     
     if (message.payload && !options.body) {

@@ -914,45 +914,54 @@ function initActionHandlers() {
     showToast('Switched profile');
   });
 
-  // Rename Profile
+  // Rename Profile (Sanitized)
   const renameBtn = document.getElementById('btn-rename-profile');
   if (renameBtn) {
     renameBtn.addEventListener('click', async () => {
-      const newName = prompt('Enter new name for this profile:', currentProfile.name);
-      if (newName && newName.trim() && newName.trim() !== currentProfile.name) {
-        currentProfile.name = newName.trim();
-        await StorageService.saveProfile(currentProfile);
-        await loadProfilesAndSettings();
-        showToast(`Profile renamed to "${currentProfile.name}"!`);
+      const rawName = prompt('Enter new name for this profile:', currentProfile.name);
+      if (rawName) {
+        const cleanName = rawName.replace(/<[^>]*>?/gm, '').trim().slice(0, 100);
+        if (cleanName && cleanName !== currentProfile.name) {
+          currentProfile.name = cleanName;
+          await StorageService.saveProfile(currentProfile);
+          await loadProfilesAndSettings();
+          showToast(`Profile renamed to "${currentProfile.name}"!`);
+        }
       }
     });
   }
 
-  // Duplicate Profile
+  // Duplicate Profile (Sanitized)
   document.getElementById('btn-duplicate-profile').addEventListener('click', async () => {
-    const newName = prompt('Enter name for duplicate profile:', `${currentProfile.name} (Copy)`);
-    if (newName) {
-      const cloned = JSON.parse(JSON.stringify(currentProfile));
-      cloned.id = `profile_${Date.now()}`;
-      cloned.name = newName;
-      await StorageService.saveProfile(cloned);
-      await StorageService.setActiveProfileId(cloned.id);
-      await loadProfilesAndSettings();
-      showToast(`Created "${newName}"`);
+    const rawName = prompt('Enter name for duplicate profile:', `${currentProfile.name} (Copy)`);
+    if (rawName) {
+      const cleanName = rawName.replace(/<[^>]*>?/gm, '').trim().slice(0, 100);
+      if (cleanName) {
+        const cloned = JSON.parse(JSON.stringify(currentProfile));
+        cloned.id = `profile_${Date.now()}`;
+        cloned.name = cleanName;
+        await StorageService.saveProfile(cloned);
+        await StorageService.setActiveProfileId(cloned.id);
+        await loadProfilesAndSettings();
+        showToast(`Created "${cleanName}"`);
+      }
     }
   });
 
-  // New Profile
+  // New Profile (Sanitized)
   document.getElementById('btn-new-profile').addEventListener('click', async () => {
-    const newName = prompt('Enter profile name:', 'New Profile');
-    if (newName) {
-      const newP = JSON.parse(JSON.stringify(DEFAULT_PROFILE));
-      newP.id = `profile_${Date.now()}`;
-      newP.name = newName;
-      await StorageService.saveProfile(newP);
-      await StorageService.setActiveProfileId(newP.id);
-      await loadProfilesAndSettings();
-      showToast(`Created profile "${newName}"`);
+    const rawName = prompt('Enter profile name:', 'New Profile');
+    if (rawName) {
+      const cleanName = rawName.replace(/<[^>]*>?/gm, '').trim().slice(0, 100);
+      if (cleanName) {
+        const newP = JSON.parse(JSON.stringify(DEFAULT_PROFILE));
+        newP.id = `profile_${Date.now()}`;
+        newP.name = cleanName;
+        await StorageService.saveProfile(newP);
+        await StorageService.setActiveProfileId(newP.id);
+        await loadProfilesAndSettings();
+        showToast(`Created profile "${cleanName}"`);
+      }
     }
   });
 
@@ -970,46 +979,94 @@ function initActionHandlers() {
     }
   });
 
-  // Export Backup
+  // Export Safe JSON Backup (API keys redacted by default)
   const exportBtn = document.getElementById('btn-export-backup');
   if (exportBtn) {
     exportBtn.addEventListener('click', async () => {
       try {
-        const jsonStr = await StorageService.exportBackup();
+        const jsonStr = await StorageService.exportBackup({ includeApiKeys: false });
         const blob = new Blob([jsonStr], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `GFAF_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `GFAF_Safe_Backup_${new Date().toISOString().slice(0, 10)}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        showToast('Backup JSON exported successfully!');
+        showToast('Safe JSON backup exported (API keys redacted)!');
       } catch (err) {
         showToast(`Export failed: ${err.message}`, 'error');
       }
     });
   }
 
-  // Import Backup
+  // Export Password-Protected Encrypted Backup (.gfaf.enc)
+  const exportEncBtn = document.getElementById('btn-export-encrypted');
+  if (exportEncBtn) {
+    exportEncBtn.addEventListener('click', async () => {
+      try {
+        const passphrase = prompt('Enter a secure password to encrypt this backup:');
+        if (!passphrase || passphrase.length < 4) {
+          showToast('Password must be at least 4 characters.', 'error');
+          return;
+        }
+
+        const encryptedData = await StorageService.exportEncryptedBackup(passphrase, { includeApiKeys: true });
+        const blob = new Blob([encryptedData], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `GFAF_Encrypted_Backup_${new Date().toISOString().slice(0, 10)}.gfaf.enc`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('AES-256 password-protected backup exported!');
+      } catch (err) {
+        showToast(`Encrypted export failed: ${err.message}`, 'error');
+      }
+    });
+  }
+
+  // Import Backup (Supports standard JSON & Encrypted .gfaf.enc)
   const importInput = document.getElementById('input-import-file');
   if (importInput) {
     importInput.addEventListener('change', async (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
 
+      const isEncrypted = file.name.endsWith('.enc') || file.name.endsWith('.gfaf.enc');
       const reader = new FileReader();
+      
       reader.onload = async (event) => {
         try {
-          await StorageService.importBackup(event.target.result);
+          const content = event.target.result;
+          let parsed;
+          try {
+            parsed = JSON.parse(content);
+          } catch {}
+
+          if (isEncrypted || (parsed && parsed.alg === 'AES-GCM-256')) {
+            const passphrase = prompt('This backup is password-protected. Enter decryption password:');
+            if (!passphrase) {
+              showToast('Decryption cancelled.', 'error');
+              importInput.value = '';
+              return;
+            }
+            await StorageService.importEncryptedBackup(content, passphrase);
+          } else {
+            await StorageService.importBackup(content);
+          }
+
           await loadProfilesAndSettings();
           await renderRagDocuments();
           await initLlmHandlers();
           importInput.value = '';
-          showToast('Backup imported successfully!');
+          showToast('Backup verified and imported successfully!');
         } catch (err) {
           showToast(`Import failed: ${err.message}`, 'error');
+          importInput.value = '';
         }
       };
       reader.readAsText(file);

@@ -4,6 +4,8 @@
  */
 
 import { STORAGE_KEYS, DEFAULT_SETTINGS, DEFAULT_PROFILE } from '../utils/constants.js';
+import { SecurityGuardService } from './security/SecurityGuardService.js';
+import { CryptoService } from './security/CryptoService.js';
 
 export class StorageService {
   /**
@@ -167,14 +169,24 @@ export class StorageService {
 
   /**
    * Export all profiles, settings, RAG docs, and LLM config to JSON string
+   * @param {object} options
+   * @param {boolean} options.includeApiKeys Whether to include raw API keys (default: false for security)
    */
-  static async exportBackup() {
+  static async exportBackup({ includeApiKeys = false } = {}) {
     const profiles = await this.getProfiles();
     const activeProfileId = await this.get(STORAGE_KEYS.ACTIVE_PROFILE_ID);
     const settings = await this.getSettings();
     const ragDocs = (await this.get('gfaf_rag_documents')) || [];
     const ragChunks = (await this.get('gfaf_rag_chunks')) || [];
-    const llmConfig = (await this.get('gfaf_llm_config')) || null;
+    let llmConfig = (await this.get('gfaf_llm_config')) || null;
+
+    // Redact raw API keys by default to prevent accidental leakage in shared files
+    if (llmConfig && !includeApiKeys) {
+      llmConfig = { ...llmConfig };
+      delete llmConfig.geminiApiKey;
+      delete llmConfig.openaiApiKey;
+      delete llmConfig.anthropicApiKey;
+    }
 
     const exportObj = {
       app: 'GoogleFormsAutoFiller',
@@ -191,13 +203,24 @@ export class StorageService {
     return JSON.stringify(exportObj, null, 2);
   }
 
+  /**
+   * Export password-protected encrypted backup (.gfaf.enc)
+   * @param {string} passphrase 
+   * @param {object} options 
+   * @returns {Promise<string>} Encrypted envelope JSON string
+   */
+  static async exportEncryptedBackup(passphrase, { includeApiKeys = true } = {}) {
+    const rawBackupJson = await this.exportBackup({ includeApiKeys });
+    return await CryptoService.encrypt(rawBackupJson, passphrase);
+  }
+
   // Alias for backward compatibility
   static async exportAllDataAsJson() {
     return await this.exportBackup();
   }
 
   /**
-   * Import data from JSON string
+   * Import data from JSON string with strict schema validation & prototype pollution defense
    */
   static async importBackup(jsonString) {
     try {
@@ -207,40 +230,41 @@ export class StorageService {
         throw new Error('Empty or invalid JSON file.');
       }
 
-      // Check if it's an array of profiles or full backup object
-      if (Array.isArray(parsed)) {
-        await this.set(STORAGE_KEYS.PROFILES, parsed);
-        if (parsed.length > 0) {
-          await this.set(STORAGE_KEYS.ACTIVE_PROFILE_ID, parsed[0].id);
-        }
-        return true;
-      }
+      // Validate and sanitize data against strict security schema
+      const sanitized = SecurityGuardService.validateAndSanitizeBackup(parsed);
 
-      if (!parsed.profiles || !Array.isArray(parsed.profiles)) {
-        throw new Error('Invalid backup file format: "profiles" array is missing.');
+      await this.set(STORAGE_KEYS.PROFILES, sanitized.profiles);
+      if (sanitized.activeProfileId) {
+        await this.set(STORAGE_KEYS.ACTIVE_PROFILE_ID, sanitized.activeProfileId);
       }
-
-      await this.set(STORAGE_KEYS.PROFILES, parsed.profiles);
-      if (parsed.activeProfileId) {
-        await this.set(STORAGE_KEYS.ACTIVE_PROFILE_ID, parsed.activeProfileId);
+      if (sanitized.settings) {
+        await this.set(STORAGE_KEYS.SETTINGS, sanitized.settings);
       }
-      if (parsed.settings) {
-        await this.set(STORAGE_KEYS.SETTINGS, parsed.settings);
+      if (sanitized.ragDocs && sanitized.ragDocs.length > 0) {
+        await this.set('gfaf_rag_documents', sanitized.ragDocs);
       }
-      if (parsed.ragDocs && Array.isArray(parsed.ragDocs)) {
-        await this.set('gfaf_rag_documents', parsed.ragDocs);
+      if (sanitized.ragChunks && sanitized.ragChunks.length > 0) {
+        await this.set('gfaf_rag_chunks', sanitized.ragChunks);
       }
-      if (parsed.ragChunks && Array.isArray(parsed.ragChunks)) {
-        await this.set('gfaf_rag_chunks', parsed.ragChunks);
-      }
-      if (parsed.llmConfig) {
-        await this.set('gfaf_llm_config', parsed.llmConfig);
+      if (sanitized.llmConfig) {
+        await this.set('gfaf_llm_config', sanitized.llmConfig);
       }
       return true;
     } catch (err) {
-      console.error('Import failed:', err);
+      console.error('[GFAF Security] Import validation failed:', err);
       throw new Error(`Failed to import data: ${err.message}`);
     }
+  }
+
+  /**
+   * Decrypt and import password-protected encrypted backup (.gfaf.enc)
+   * @param {string} encryptedStr 
+   * @param {string} passphrase 
+   * @returns {Promise<boolean>}
+   */
+  static async importEncryptedBackup(encryptedStr, passphrase) {
+    const decryptedData = await CryptoService.decrypt(encryptedStr, passphrase);
+    return await this.importBackup(decryptedData);
   }
 
   // Alias for backward compatibility
