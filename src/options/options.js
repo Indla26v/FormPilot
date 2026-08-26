@@ -35,50 +35,41 @@ document.addEventListener('DOMContentLoaded', async () => {
  * Populate all SVG icon containers
  */
 function injectIcons() {
-  document.getElementById('brand-badge-icon').innerHTML = ICONS.zap;
-  const renameIcon = document.getElementById('icon-rename-profile');
-  if (renameIcon) renameIcon.innerHTML = ICONS.edit;
-  document.getElementById('icon-duplicate').innerHTML = ICONS.layers;
-  document.getElementById('icon-new-profile').innerHTML = ICONS.plus;
-  document.getElementById('icon-delete-profile').innerHTML = ICONS.trash;
+  const safeSetIcon = (id, svg) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = svg;
+  };
 
-  document.getElementById('nav-icon-personal').innerHTML = ICONS.user;
-  document.getElementById('nav-icon-education').innerHTML = ICONS.education;
-  document.getElementById('nav-icon-experience').innerHTML = ICONS.briefcase;
-  document.getElementById('nav-icon-links').innerHTML = ICONS.link;
-  document.getElementById('nav-icon-skills').innerHTML = ICONS.zap;
-  document.getElementById('nav-icon-rag').innerHTML = ICONS.database;
-  document.getElementById('nav-icon-llm').innerHTML = ICONS.bot;
-  document.getElementById('nav-icon-smartqa').innerHTML = ICONS.messageSquare;
-  document.getElementById('nav-icon-custom').innerHTML = ICONS.edit;
-  document.getElementById('nav-icon-settings').innerHTML = ICONS.settings;
+  safeSetIcon('brand-badge-icon', ICONS.zap);
+  safeSetIcon('icon-rename-profile', ICONS.edit);
+  safeSetIcon('icon-duplicate', ICONS.layers);
+  safeSetIcon('icon-new-profile', ICONS.plus);
+  safeSetIcon('icon-delete-profile', ICONS.trash);
 
-  document.getElementById('icon-save').innerHTML = ICONS.save;
-  document.getElementById('icon-add-skill').innerHTML = ICONS.plus;
-  document.getElementById('icon-add-qa').innerHTML = ICONS.plus;
-  document.getElementById('icon-add-custom').innerHTML = ICONS.plus;
-  document.getElementById('icon-export').innerHTML = ICONS.download;
-  document.getElementById('icon-import').innerHTML = ICONS.upload;
-  document.getElementById('global-toast-icon').innerHTML = ICONS.checkCircle;
+  safeSetIcon('nav-icon-personal', ICONS.user);
+  safeSetIcon('nav-icon-education', ICONS.education);
+  safeSetIcon('nav-icon-experience', ICONS.briefcase);
+  safeSetIcon('nav-icon-links', ICONS.link);
+  safeSetIcon('nav-icon-skills', ICONS.zap);
+  safeSetIcon('nav-icon-rag', ICONS.database);
+  safeSetIcon('nav-icon-llm', ICONS.bot);
+  safeSetIcon('nav-icon-custom', ICONS.edit);
+  safeSetIcon('nav-icon-settings', ICONS.settings);
+
+  safeSetIcon('icon-save', ICONS.save);
+  safeSetIcon('icon-add-skill', ICONS.plus);
+  safeSetIcon('icon-add-custom', ICONS.plus);
+  safeSetIcon('icon-export', ICONS.download);
+  safeSetIcon('icon-import', ICONS.upload);
+  safeSetIcon('global-toast-icon', ICONS.checkCircle);
 
   // RAG & LLM Icons
-  const dropzoneIcon = document.getElementById('icon-dropzone-upload');
-  if (dropzoneIcon) dropzoneIcon.innerHTML = ICONS.upload;
-
-  const githubFetchIcon = document.getElementById('icon-github-fetch');
-  if (githubFetchIcon) githubFetchIcon.innerHTML = ICONS.download;
-
-  const clearKbIcon = document.getElementById('icon-clear-kb');
-  if (clearKbIcon) clearKbIcon.innerHTML = ICONS.trash;
-
-  const detectModelsIcon = document.getElementById('icon-detect-models');
-  if (detectModelsIcon) detectModelsIcon.innerHTML = ICONS.search;
-
-  const testLlmIcon = document.getElementById('icon-test-llm');
-  if (testLlmIcon) testLlmIcon.innerHTML = ICONS.zap;
-
-  const saveLlmIcon = document.getElementById('icon-save-llm');
-  if (saveLlmIcon) saveLlmIcon.innerHTML = ICONS.save;
+  safeSetIcon('icon-dropzone-upload', ICONS.upload);
+  safeSetIcon('icon-github-fetch', ICONS.download);
+  safeSetIcon('icon-clear-kb', ICONS.trash);
+  safeSetIcon('icon-detect-models', ICONS.search);
+  safeSetIcon('icon-test-llm', ICONS.zap);
+  safeSetIcon('icon-save-llm', ICONS.save);
 }
 
 /**

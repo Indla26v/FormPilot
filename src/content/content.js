@@ -1902,11 +1902,22 @@ Directly tailor and align the candidate's matching experience, technologies, and
     settingsBtn.addEventListener('click', (e) => {
       e.preventDefault();
       try {
-        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-          chrome.runtime.sendMessage({ action: 'OPEN_OPTIONS_PAGE' });
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id && chrome.runtime.sendMessage) {
+          chrome.runtime.sendMessage({ action: 'OPEN_OPTIONS_PAGE' }, () => {
+            if (chrome.runtime && chrome.runtime.lastError) {
+              const optionsUrl = chrome.runtime.getURL ? chrome.runtime.getURL('src/options/options.html') : null;
+              if (optionsUrl) window.open(optionsUrl, '_blank');
+            }
+          });
+        } else if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+          window.open(chrome.runtime.getURL('src/options/options.html'), '_blank');
         }
       } catch (err) {
-        console.warn('[GFAF] Open options error:', err);
+        if (err && err.message && err.message.includes('Extension context invalidated')) {
+          showToast('Extension reloaded. Please refresh this page tab.');
+        } else {
+          console.warn('[GFAF] Open options error:', err);
+        }
       }
     });
 
