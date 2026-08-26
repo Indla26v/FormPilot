@@ -408,17 +408,32 @@ export class GoogleFormsFillerService {
   static highlightContainer(containerEl, matchInfo) {
     if (!containerEl) return;
     this.setProcessingState(containerEl, false);
-    containerEl.classList.add('gfaf-filled-highlight');
 
-    let badge = containerEl.querySelector('.gfaf-match-badge');
-    if (!badge) {
-      badge = document.createElement('div');
-      badge.className = 'gfaf-match-badge';
-      if (containerEl.style) {
-        containerEl.style.position = 'relative';
-      }
-      containerEl.appendChild(badge);
+    // Always resolve to the outermost question card to prevent inner/overlapping badges
+    const outerQuestion = (typeof containerEl.closest === 'function')
+      ? (containerEl.closest('div[role="listitem"], div[jsmodel], div[data-automation-id="questionItem"], .office-form-question') || containerEl)
+      : containerEl;
+
+    outerQuestion.classList.add('gfaf-filled-highlight');
+
+    // Strip any inner/duplicate badges across all children inside this question container
+    const existingBadges = outerQuestion.querySelectorAll ? outerQuestion.querySelectorAll('.gfaf-match-badge') : [];
+    if (existingBadges && existingBadges.length > 0) {
+      existingBadges.forEach((b) => {
+        if (typeof b.remove === 'function') {
+          b.remove();
+        } else if (b.parentElement && b.parentElement.removeChild) {
+          b.parentElement.removeChild(b);
+        }
+      });
     }
+
+    const badge = document.createElement('div');
+    badge.className = 'gfaf-match-badge';
+    if (outerQuestion.style) {
+      outerQuestion.style.position = 'relative';
+    }
+    outerQuestion.appendChild(badge);
 
     const confidencePct = Math.round((matchInfo.confidence || 1.0) * 100);
     badge.textContent = matchInfo.isRag ? 'Auto-filled via AI' : `Auto-filled (${confidencePct}%)`;
