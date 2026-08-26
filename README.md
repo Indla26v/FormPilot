@@ -27,6 +27,38 @@ A smart, modern Manifest V3 Chrome Extension designed specifically for candidate
 
 ---
 
+## System Requirements & Laptop Specifications
+
+Depending on whether you use **Cloud AI / Profile Matching** or **Local Offline Ollama**, the recommended laptop specifications are as follows:
+
+### 1. Standard Mode / Cloud AI (Gemini, OpenAI, Claude, Rule Matching)
+The extension itself is extremely lightweight and runs smoothly in Google Chrome on almost any laptop or desktop.
+
+| Component | Minimum Specification | Recommended Specification |
+| :--- | :--- | :--- |
+| **Processor (CPU)** | Dual-Core Intel Core i3 / AMD Ryzen 3 | Quad-Core Intel Core i5 / AMD Ryzen 5 / Apple Silicon M1+ |
+| **RAM** | 4 GB | 8 GB or higher |
+| **Storage** | 100 MB free disk space | 500 MB SSD |
+| **Operating System** | Windows 10/11, macOS 11+, Linux | Windows 11 / macOS latest / Ubuntu 22.04+ |
+| **Browser** | Google Chrome 100+, Edge, Brave, Arc | Latest Google Chrome / Chromium-based browser |
+| **Internet** | Required for Cloud APIs (Gemini/OpenAI) | Stable broadband connection |
+
+---
+
+### 2. Local AI & Offline Mode (Ollama On-Device LLMs)
+If you run **Local Ollama** models (such as `llama3.2`, `deepseek-r1`, `phi3`, `mistral`) completely offline on your laptop:
+
+| Specification Tier | Target Models | CPU | RAM | GPU / VRAM | Free SSD Storage |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Entry-Level (Smooth CPU)** | `llama3.2:1b`, `llama3.2:3b`, `phi3:mini` | Intel i5 (8th Gen+) / AMD Ryzen 5 (3000+) / Apple M1 | 8 GB | Integrated (Intel Iris Xe, AMD Radeon, or Apple M1/M2) | 10 GB SSD |
+| **Recommended (Fast / High Quality)** | `llama3.2:3b`, `mistral:7b`, `deepseek-r1:7b` | Intel i7 (11th Gen+) / AMD Ryzen 7 (5000+) / Apple Silicon M-Series | 16 GB | NVIDIA GTX 1650 / RTX 3050 / RTX 4050+ (4 GB - 6 GB VRAM) | 20 GB NVMe SSD |
+| **Power User / Heavy RAG** | `llama3.1:8b`, `deepseek-r1:8b`, `qwen2.5:7b` | Intel Core i7/i9 (12th Gen+) / AMD Ryzen 7/9 / Apple M-Pro/Max | 16 GB – 32 GB | NVIDIA RTX 3060 / 4060 / 4070+ (8 GB+ VRAM) or Apple Unified 16GB+ | 30 GB NVMe SSD |
+
+> [!TIP]
+> For everyday laptops with 8 GB RAM and no dedicated GPU, **`llama3.2:3b`** or **`llama3.2:1b`** provides instant generation speeds with minimal memory footprint! If you prefer zero local resource usage, simply use the built-in **Google Gemini 1.5 Flash** or **OpenAI GPT-4o-mini** cloud options.
+
+---
+
 ## How to Setup Local Ollama (Free & Offline)
 
 1. Install Ollama from [ollama.com](https://ollama.com).
