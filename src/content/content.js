@@ -12,6 +12,7 @@
   }
   window.__GFAF_CONTENT_INJECTED__ = true;
   const fieldChatHistory = (window.__GFAF_FIELD_CHAT_HISTORY__ = window.__GFAF_FIELD_CHAT_HISTORY__ || new Map());
+  let sessionJobDescription = (window.__GFAF_SESSION_JD__ = window.__GFAF_SESSION_JD__ || '');
 
   // ----------------------------------------------------
   // 1. CONSTANTS & DICTIONARIES
@@ -1253,7 +1254,7 @@ HUMANIZED WRITING STYLE & TONE:
           history.push({ role: 'user', content: customInstructions.trim() });
         }
 
-        const baseContextPrompt = `Candidate Profile:
+        let baseContextPrompt = `Candidate Profile:
 Name: ${candidateName}
 Skills: ${skillsFormatted}
 Experience Context:
@@ -1261,6 +1262,17 @@ ${contextStr}
 
 Question:
 "${questionText}"`;
+
+        // Inject session-scoped Job Description alignment if provided on current page
+        if (sessionJobDescription && sessionJobDescription.trim()) {
+          const sanitizedJd = sessionJobDescription.trim().slice(0, 3500);
+          baseContextPrompt += `\n\nTARGET JOB DESCRIPTION / ROLE REQUIREMENTS (Session Alignment):
+"""
+${sanitizedJd}
+"""
+ALIGNMENT DIRECTIVE:
+Directly tailor and align the candidate's matching experience, technologies, and skills to address the key qualifications and keywords in the Job Description above, while remaining completely truthful to candidate profile facts.`;
+        }
 
         const messages = [
           { role: 'system', content: systemPrompt },
@@ -1286,7 +1298,7 @@ Question:
         let singlePrompt = `${baseContextPrompt}\n\n`;
         if (isFollowUp) {
           const prevAnswer = currentFieldValue || (history.filter((h) => h.role === 'assistant').pop()?.content) || '';
-          singlePrompt += `[CURRENT ANSWER IN FORM]:\n"${prevAnswer}"\n\n[USER REVISION COMMENT]:\n"${customInstructions}"\n\n[REVISION HISTORY CONTEXT]:\n${history.map((h, i) => `${h.role === 'user' ? 'User Instruction' : 'Generated Answer'}: ${h.content}`).join('\n')}\n\nTask: Revise the previous answer incorporating the user's instructions while keeping it authentic and grounded in the candidate profile.\nAnswer:`;
+          singlePrompt += `[CURRENT ANSWER IN FORM]:\n"${prevAnswer}"\n\n[USER REVISION COMMENT]:\n"${customInstructions}"\n\n[REVISION HISTORY CONTEXT]:\n${history.map((h, i) => `${h.role === 'user' ? 'User Instruction' : 'Generated Answer'}: ${h.content}`).join('\n')}\n\nTask: Revise the previous answer incorporating the user's instructions and Job Description alignment while keeping it authentic and grounded in the candidate profile.\nAnswer:`;
         } else {
           singlePrompt += `${customInstructions ? `USER FEEDBACK / INSTRUCTIONS:\n"${customInstructions}"\n\n` : ''}Answer:`;
         }
@@ -1903,6 +1915,125 @@ Question:
 
     card.appendChild(dropdownWrap);
     card.appendChild(actionRow);
+
+    // 0. Job Description (JD) Alignment Input Area (Directly above the dock card)
+    const jdPanel = document.createElement('div');
+    jdPanel.className = 'gfaf-jd-panel';
+
+    const jdPillToggle = document.createElement('button');
+    jdPillToggle.type = 'button';
+    jdPillToggle.className = `gfaf-jd-pill-toggle ${sessionJobDescription ? 'has-jd' : ''}`;
+    jdPillToggle.setAttribute('title', 'Target Job Description (Optional, current page only)');
+    jdPillToggle.innerHTML = `
+      <div class="gfaf-jd-pill-left">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+        </svg>
+        <span class="gfaf-jd-pill-title">Target JD</span>
+        <span class="gfaf-jd-active-dot ${sessionJobDescription ? '' : 'hidden'}" title="JD Alignment Active"></span>
+      </div>
+      <svg class="gfaf-jd-pill-chevron" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+    `;
+
+    const jdCard = document.createElement('div');
+    jdCard.className = 'gfaf-jd-card hidden';
+
+    const jdCardHeader = document.createElement('div');
+    jdCardHeader.className = 'gfaf-jd-card-header';
+    jdCardHeader.innerHTML = `
+      <div class="gfaf-jd-card-title">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+        </svg>
+        <span>Job Description (Optional)</span>
+      </div>
+    `;
+
+    const jdCloseBtn = document.createElement('button');
+    jdCloseBtn.type = 'button';
+    jdCloseBtn.className = 'gfaf-jd-close-btn';
+    jdCloseBtn.setAttribute('title', 'Collapse JD Input');
+    jdCloseBtn.innerHTML = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+    jdCardHeader.appendChild(jdCloseBtn);
+
+    const jdTextarea = document.createElement('textarea');
+    jdTextarea.className = 'gfaf-jd-textarea';
+    jdTextarea.placeholder = 'Paste Job Description (JD) here to align AI answers to this specific role...';
+    jdTextarea.value = sessionJobDescription;
+
+    const jdCardFooter = document.createElement('div');
+    jdCardFooter.className = 'gfaf-jd-card-footer';
+
+    const jdTag = document.createElement('span');
+    jdTag.className = 'gfaf-jd-tag';
+    jdTag.textContent = 'Current page only • Not saved';
+
+    const jdClearBtn = document.createElement('button');
+    jdClearBtn.type = 'button';
+    jdClearBtn.className = `gfaf-jd-clear-btn ${sessionJobDescription ? '' : 'hidden'}`;
+    jdClearBtn.textContent = 'Clear';
+
+    jdCardFooter.appendChild(jdTag);
+    jdCardFooter.appendChild(jdClearBtn);
+
+    jdCard.appendChild(jdCardHeader);
+    jdCard.appendChild(jdTextarea);
+    jdCard.appendChild(jdCardFooter);
+
+    jdPanel.appendChild(jdCard);
+    jdPanel.appendChild(jdPillToggle);
+
+    // Event handlers for JD state
+    const activeDot = jdPillToggle.querySelector('.gfaf-jd-active-dot');
+
+    const updateJdState = () => {
+      sessionJobDescription = (window.__GFAF_SESSION_JD__ = jdTextarea.value.trim());
+      if (sessionJobDescription) {
+        activeDot.classList.remove('hidden');
+        jdClearBtn.classList.remove('hidden');
+        jdPillToggle.classList.add('has-jd');
+      } else {
+        activeDot.classList.add('hidden');
+        jdClearBtn.classList.add('hidden');
+        jdPillToggle.classList.remove('has-jd');
+      }
+    };
+
+    jdTextarea.addEventListener('input', updateJdState);
+
+    jdClearBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      jdTextarea.value = '';
+      updateJdState();
+      showToast('Cleared Job Description alignment.');
+    });
+
+    jdPillToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isHidden = jdCard.classList.contains('hidden');
+      if (isHidden) {
+        jdCard.classList.remove('hidden');
+        jdPillToggle.classList.add('open');
+        jdTextarea.focus();
+      } else {
+        jdCard.classList.add('hidden');
+        jdPillToggle.classList.remove('open');
+      }
+    });
+
+    jdCloseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      jdCard.classList.add('hidden');
+      jdPillToggle.classList.remove('open');
+    });
+
+    root.appendChild(jdPanel);
     root.appendChild(card);
 
     document.body.appendChild(root);

@@ -384,7 +384,7 @@ export class LlmService {
   /**
    * Synthesize candidate answer using retrieved RAG context chunks and temporary conversation memory
    */
-  static async generateRagAnswer({ question, retrievedChunks, profile, customInstructions = '', conversationHistory = [], currentFieldValue = '' }) {
+  static async generateRagAnswer({ question, retrievedChunks, profile, customInstructions = '', conversationHistory = [], currentFieldValue = '', jobDescription = '' }) {
     const config = await this.getConfig();
     const provider = this.getProvider(config.provider);
 
@@ -424,6 +424,14 @@ ${contextText || 'No specific document chunks retrieved. Rely on core skills and
 
 QUESTION TO ANSWER:
 "${question}"\n\n`;
+
+    if (jobDescription && jobDescription.trim()) {
+      userPrompt += `TARGET JOB DESCRIPTION / ROLE REQUIREMENTS (Alignment Directive):
+"""
+${jobDescription.trim()}
+"""
+ALIGNMENT INSTRUCTION: Tailor and align your response to directly emphasize the requirements, skills, and qualifications mentioned in the Target Job Description above, while staying completely truthful to the candidate profile facts.\n\n`;
+    }
 
     if (currentFieldValue || (conversationHistory && conversationHistory.length > 0)) {
       const prevDraft = currentFieldValue || (conversationHistory.filter((c) => c.role === 'assistant').pop()?.content) || '';

@@ -40,7 +40,7 @@
   }
 }
 
-/* Floating Assistant Widget */
+/* Floating Assistant Widget Root */
 #gfaf-floating-root {
   position: fixed;
   bottom: 24px;
@@ -48,8 +48,214 @@
   z-index: 999999;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
 }
 
+/* ----------------------------------------------------
+   Target Job Description (JD) Drawer (Above Dock)
+---------------------------------------------------- */
+.gfaf-jd-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  width: 100%;
+  position: relative;
+}
+
+.gfaf-jd-pill-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 152px;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 9999px; /* Pill shape */
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.gfaf-jd-pill-toggle:hover {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(99, 102, 241, 0.5);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.gfaf-jd-pill-toggle.open {
+  border-color: #6366f1;
+  background: rgba(30, 41, 59, 0.98);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+}
+
+.gfaf-jd-pill-toggle.has-jd {
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.gfaf-jd-pill-left {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.gfaf-jd-pill-title {
+  letter-spacing: 0.2px;
+}
+
+.gfaf-jd-active-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  flex-shrink: 0;
+}
+
+.gfaf-jd-active-dot.hidden {
+  display: none !important;
+}
+
+.gfaf-jd-pill-chevron {
+  transition: transform 0.2s ease;
+  color: #94a3b8;
+}
+
+.gfaf-jd-pill-toggle.open .gfaf-jd-pill-chevron {
+  transform: rotate(180deg);
+}
+
+/* Expanded Glassmorphic JD Card */
+.gfaf-jd-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 240px;
+  background: rgba(15, 23, 42, 0.98);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(99, 102, 241, 0.45);
+  border-radius: 14px;
+  padding: 8px 10px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55), 0 0 16px rgba(99, 102, 241, 0.25);
+  margin-bottom: 4px;
+  animation: gfafMenuPop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+.gfaf-jd-card.hidden {
+  display: none !important;
+}
+
+.gfaf-jd-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.gfaf-jd-card-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.gfaf-jd-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.gfaf-jd-close-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+}
+
+.gfaf-jd-textarea {
+  width: 100%;
+  height: 72px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: #f8fafc;
+  font-size: 11px;
+  font-family: inherit;
+  line-height: 1.4;
+  resize: vertical;
+  min-height: 54px;
+  max-height: 140px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.gfaf-jd-textarea:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.gfaf-jd-textarea::placeholder {
+  color: #64748b;
+  font-size: 10.5px;
+}
+
+.gfaf-jd-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.gfaf-jd-tag {
+  font-size: 9.5px;
+  color: #64748b;
+}
+
+.gfaf-jd-clear-btn {
+  background: none;
+  border: none;
+  color: #f87171;
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  outline: none;
+  transition: color 0.15s ease;
+}
+
+.gfaf-jd-clear-btn:hover {
+  color: #ef4444;
+  text-decoration: underline;
+}
+
+.gfaf-jd-clear-btn.hidden {
+  display: none !important;
+}
+
+/* Floating Dock Card */
 .gfaf-widget-card {
   display: flex;
   flex-direction: column;
