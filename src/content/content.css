@@ -400,15 +400,15 @@
 }
 
 /* ----------------------------------------------------
-   Per-Column Small AI Action Button (Pill shaped, modern)
+   Per-Column Small AI Action Button (Pill shaped, modern, outside box)
 ---------------------------------------------------- */
 .gfaf-ai-column-action-bar {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  margin-top: 6px;
+  margin-top: 10px;
   margin-bottom: 4px;
-  padding: 2px 0;
+  padding: 4px 0;
   width: 100%;
   box-sizing: border-box;
 }
@@ -416,12 +416,12 @@
 .gfaf-ai-column-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   background: rgba(99, 102, 241, 0.08);
   color: #6366f1;
-  border: 1px solid rgba(99, 102, 241, 0.28);
+  border: 1px solid rgba(99, 102, 241, 0.3);
   border-radius: 9999px; /* Pill shape */
-  padding: 4px 12px;
+  padding: 5px 14px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   font-size: 11.5px;
   font-weight: 600;
@@ -429,7 +429,7 @@
   cursor: pointer;
   outline: none;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 1px 4px rgba(99, 102, 241, 0.08);
+  box-shadow: 0 1px 4px rgba(99, 102, 241, 0.1);
   user-select: none;
 }
 

@@ -1483,6 +1483,14 @@ Question:
           e.stopPropagation();
           if (btn.disabled) return;
 
+          // 1. Immediately open the comment & re-generate toolbar
+          LocalFillerService.attachAiToolbar(containerEl, targetEl, questionText, profile);
+          const toolbar = containerEl.querySelector('.gfaf-ai-toolbar');
+          const commentInput = toolbar ? toolbar.querySelector('.gfaf-ai-comment-input') : null;
+          if (commentInput) {
+            commentInput.focus();
+          }
+
           btn.disabled = true;
           btn.classList.add('loading');
           btn.innerHTML = `
@@ -1499,7 +1507,6 @@ Question:
             if (generated && generated.trim()) {
               LocalFillerService.setInputValue(targetEl, generated.trim());
               LocalFillerService.highlightContainer(containerEl, { confidence: 0.98, isRag: true });
-              LocalFillerService.attachAiToolbar(containerEl, targetEl, questionText, profile);
               btn.classList.remove('loading');
               btn.classList.add('active');
               btn.innerHTML = `
@@ -1510,7 +1517,7 @@ Question:
                 </svg>
                 <span class="gfaf-ai-column-btn-text">Regenerate AI</span>
               `;
-              showToast('Generated AI answer for column!');
+              showToast('Generated AI answer! Use the prompt bar to refine.');
             } else {
               btn.classList.remove('loading');
               btn.innerHTML = `
@@ -1536,13 +1543,8 @@ Question:
           btn.disabled = false;
         });
 
-        // Insert action bar below the input wrapper or inside the container
-        const inputWrap = targetEl.closest('.AgroD, .o3DHgf, .M7eMe') || targetEl.parentElement;
-        if (inputWrap && inputWrap.parentElement) {
-          inputWrap.parentElement.insertBefore(actionBar, inputWrap.nextSibling);
-        } else {
-          containerEl.appendChild(actionBar);
-        }
+        // Place outside the input box, right-aligned on the question container
+        containerEl.appendChild(actionBar);
       }
       return actionBar;
     }

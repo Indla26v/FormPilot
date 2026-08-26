@@ -318,6 +318,14 @@ export class GoogleFormsFillerService {
           e.stopPropagation();
           if (btn.disabled) return;
 
+          // 1. Immediately open the comment & re-generate toolbar
+          GoogleFormsFillerService.attachAiToolbar(containerEl, targetEl, questionText, profile);
+          const toolbar = containerEl.querySelector('.gfaf-ai-toolbar');
+          const commentInput = toolbar ? toolbar.querySelector('.gfaf-ai-comment-input') : null;
+          if (commentInput && commentInput.focus) {
+            commentInput.focus();
+          }
+
           btn.disabled = true;
           btn.classList.add('loading');
           btn.innerHTML = `
@@ -340,7 +348,6 @@ export class GoogleFormsFillerService {
             if (generated && generated.trim()) {
               GoogleFormsFillerService.setInputValue(targetEl, generated.trim());
               GoogleFormsFillerService.highlightContainer(containerEl, { confidence: 0.98, isRag: true });
-              GoogleFormsFillerService.attachAiToolbar(containerEl, targetEl, questionText, profile);
               btn.classList.remove('loading');
               btn.classList.add('active');
               btn.innerHTML = `
@@ -375,13 +382,8 @@ export class GoogleFormsFillerService {
         });
       }
 
-      // Insert action bar below the input wrapper or inside the container
-      const inputWrap = targetEl.closest('.AgroD, .o3DHgf, .M7eMe') || targetEl.parentElement;
-      if (inputWrap && inputWrap.parentElement) {
-        inputWrap.parentElement.insertBefore(actionBar, inputWrap.nextSibling);
-      } else {
-        containerEl.appendChild(actionBar);
-      }
+      // Place outside the input box, right-aligned on the question container
+      containerEl.appendChild(actionBar);
     }
     return actionBar;
   }
