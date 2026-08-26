@@ -1842,10 +1842,13 @@ Question:
     dropdownWrap.appendChild(triggerBtn);
     dropdownWrap.appendChild(dropdownMenu);
 
-    // 2. Auto-Fill Action Pill Button (Below profile selector)
+    // 2. Action Buttons Row (Compact Auto-Fill + Settings Gear Button)
+    const actionRow = document.createElement('div');
+    actionRow.className = 'gfaf-widget-action-row';
+
     const fillBtn = document.createElement('button');
     fillBtn.type = 'button';
-    fillBtn.className = 'gfaf-pill-btn gfaf-pill-btn-primary';
+    fillBtn.className = 'gfaf-pill-btn gfaf-pill-btn-primary gfaf-fill-btn-compact';
     fillBtn.innerHTML = `${ICONS.sparkles} <span>Auto-Fill</span>`;
     fillBtn.addEventListener('click', async (e) => {
       e.preventDefault();
@@ -1854,8 +1857,33 @@ Question:
       await triggerAutoFill();
     });
 
+    const settingsBtn = document.createElement('button');
+    settingsBtn.type = 'button';
+    settingsBtn.className = 'gfaf-widget-settings-btn';
+    settingsBtn.setAttribute('title', 'Manage Candidate Profiles & Settings');
+    settingsBtn.setAttribute('aria-label', 'Manage Candidate Profiles & Settings');
+    settingsBtn.innerHTML = `
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+    `;
+    settingsBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      try {
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+          chrome.runtime.sendMessage({ action: 'OPEN_OPTIONS_PAGE' });
+        }
+      } catch (err) {
+        console.warn('[GFAF] Open options error:', err);
+      }
+    });
+
+    actionRow.appendChild(fillBtn);
+    actionRow.appendChild(settingsBtn);
+
     card.appendChild(dropdownWrap);
-    card.appendChild(fillBtn);
+    card.appendChild(actionRow);
     root.appendChild(card);
 
     document.body.appendChild(root);

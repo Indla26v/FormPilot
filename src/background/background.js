@@ -49,7 +49,7 @@ chrome.commands.onCommand.addListener((command) => {
 
 // Handle Message Routing & Proxy Fetching
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'OPEN_OPTIONS_PAGE') {
+  if (message.action === 'OPEN_OPTIONS_PAGE' || message.action === 'OPEN_OPTIONS') {
     chrome.runtime.openOptionsPage();
     sendResponse({ success: true });
     return true;
