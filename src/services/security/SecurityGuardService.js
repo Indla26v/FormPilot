@@ -59,12 +59,16 @@ export class SecurityGuardService {
     const safeProfile = {
       id: typeof clean.id === 'string' && clean.id.trim() ? clean.id.trim().slice(0, 64) : `profile_${Date.now()}`,
       name: typeof clean.name === 'string' && clean.name.trim() ? clean.name.trim().slice(0, 100) : 'Untitled Profile',
+      createdAt: clean.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+
       personal: typeof clean.personal === 'object' && clean.personal ? {
         fullName: String(clean.personal.fullName || '').slice(0, 120),
         firstName: String(clean.personal.firstName || '').slice(0, 60),
         lastName: String(clean.personal.lastName || '').slice(0, 60),
         email: String(clean.personal.email || '').slice(0, 120),
         phone: String(clean.personal.phone || '').slice(0, 40),
+        phoneDigits: String(clean.personal.phoneDigits || '').slice(0, 30),
         alternatePhone: String(clean.personal.alternatePhone || '').slice(0, 40),
         gender: String(clean.personal.gender || '').slice(0, 30),
         dob: String(clean.personal.dob || '').slice(0, 30),
@@ -75,43 +79,71 @@ export class SecurityGuardService {
         country: String(clean.personal.country || '').slice(0, 60),
         currentLocation: String(clean.personal.currentLocation || '').slice(0, 80)
       } : {},
+
       education: typeof clean.education === 'object' && clean.education ? {
         collegeName: String(clean.education.collegeName || '').slice(0, 150),
         degree: String(clean.education.degree || '').slice(0, 100),
         branch: String(clean.education.branch || '').slice(0, 100),
-        graduationYear: String(clean.education.graduationYear || '').slice(0, 10),
-        cgpa: String(clean.education.cgpa || '').slice(0, 20),
-        percentage10th: String(clean.education.percentage10th || '').slice(0, 20),
-        percentage12th: String(clean.education.percentage12th || '').slice(0, 20)
+        graduationYear: String(clean.education.graduationYear || '').slice(0, 20),
+        graduationStatus: String(clean.education.graduationStatus || '').slice(0, 100),
+        workingStatus: String(clean.education.workingStatus || '').slice(0, 100),
+        tenthPercentage: String(clean.education.tenthPercentage || clean.education.percentage10th || '').slice(0, 30),
+        tenthPercentageNumeric: String(clean.education.tenthPercentageNumeric || '').slice(0, 20),
+        twelfthPercentage: String(clean.education.twelfthPercentage || clean.education.percentage12th || '').slice(0, 30),
+        twelfthPercentageNumeric: String(clean.education.twelfthPercentageNumeric || '').slice(0, 20),
+        graduationCgpa: String(clean.education.graduationCgpa || clean.education.cgpa || '').slice(0, 30),
+        graduationCgpaNumeric: String(clean.education.graduationCgpaNumeric || '').slice(0, 20)
       } : {},
+
       professional: typeof clean.professional === 'object' && clean.professional ? {
-        currentCompany: String(clean.professional.currentCompany || '').slice(0, 120),
-        currentRole: String(clean.professional.currentRole || '').slice(0, 100),
-        totalExperienceYears: String(clean.professional.totalExperienceYears || '').slice(0, 10),
-        currentCtcLpa: String(clean.professional.currentCtcLpa || '').slice(0, 20),
-        expectedCtcLpa: String(clean.professional.expectedCtcLpa || '').slice(0, 20),
-        noticePeriodDays: String(clean.professional.noticePeriodDays || '').slice(0, 10)
+        currentOrganization: String(clean.professional.currentOrganization || clean.professional.currentCompany || '').slice(0, 150),
+        currentRole: String(clean.professional.currentRole || '').slice(0, 120),
+        totalExperienceYears: String(clean.professional.totalExperienceYears || '').slice(0, 20),
+        noticePeriod: String(clean.professional.noticePeriod || '').slice(0, 50),
+        noticePeriodDays: String(clean.professional.noticePeriodDays || '0').slice(0, 10),
+        canJoinImmediately: String(clean.professional.canJoinImmediately || '').slice(0, 20),
+        hoursCommitmentConfirmed: String(clean.professional.hoursCommitmentConfirmed || '').slice(0, 20),
+        currentCtc: String(clean.professional.currentCtc || '').slice(0, 50),
+        currentCtcLpa: String(clean.professional.currentCtcLpa || '').slice(0, 30),
+        currentCtcNumeric: String(clean.professional.currentCtcNumeric || '').slice(0, 30),
+        expectedCtc: String(clean.professional.expectedCtc || '').slice(0, 50),
+        expectedCtcLpa: String(clean.professional.expectedCtcLpa || '').slice(0, 30),
+        expectedCtcNumeric: String(clean.professional.expectedCtcNumeric || '').slice(0, 30),
+        stipendExpectation: String(clean.professional.stipendExpectation || '').slice(0, 60),
+        stipendExpectationNumeric: String(clean.professional.stipendExpectationNumeric || '').slice(0, 30)
       } : {},
-      social: typeof clean.social === 'object' && clean.social ? {
-        linkedinUrl: String(clean.social.linkedinUrl || '').slice(0, 200),
-        githubUrl: String(clean.social.githubUrl || '').slice(0, 200),
-        portfolioUrl: String(clean.social.portfolioUrl || '').slice(0, 200),
-        twitterUrl: String(clean.social.twitterUrl || '').slice(0, 200)
-      } : {},
+
+      links: typeof clean.links === 'object' && clean.links ? {
+        linkedinUrl: String(clean.links.linkedinUrl || '').slice(0, 300),
+        githubUrl: String(clean.links.githubUrl || '').slice(0, 300),
+        portfolioUrl: String(clean.links.portfolioUrl || '').slice(0, 300),
+        projectDemoUrl: String(clean.links.projectDemoUrl || '').slice(0, 300),
+        resumeUrl: String(clean.links.resumeUrl || '').slice(0, 300)
+      } : (typeof clean.social === 'object' && clean.social ? {
+        linkedinUrl: String(clean.social.linkedinUrl || '').slice(0, 300),
+        githubUrl: String(clean.social.githubUrl || '').slice(0, 300),
+        portfolioUrl: String(clean.social.portfolioUrl || '').slice(0, 300),
+        projectDemoUrl: String(clean.social.projectDemoUrl || '').slice(0, 300),
+        resumeUrl: String(clean.social.resumeUrl || '').slice(0, 300)
+      } : {}),
+
       skills: Array.isArray(clean.skills) ? clean.skills.map((s) => {
-        if (typeof s === 'string') return s.slice(0, 50);
+        if (typeof s === 'string') return s.slice(0, 80);
         if (s && typeof s === 'object') {
           return {
-            name: String(s.name || '').slice(0, 50),
+            name: String(s.name || '').slice(0, 80),
+            level: s.level ? String(s.level).slice(0, 30) : undefined,
+            years: s.years ? String(s.years).slice(0, 20) : undefined,
             experienceYears: Number(s.experienceYears) || 0,
-            proficiency: String(s.proficiency || 'Intermediate').slice(0, 20)
+            proficiency: String(s.proficiency || 'Intermediate').slice(0, 30)
           };
         }
-        return String(s || '').slice(0, 50);
+        return String(s || '').slice(0, 80);
       }) : [],
+
       customFields: Array.isArray(clean.customFields) ? clean.customFields.map((cf) => ({
-        key: String(cf.key || '').slice(0, 100),
-        value: String(cf.value || '').slice(0, 500)
+        key: String(cf.key || '').slice(0, 150),
+        value: String(cf.value || '').slice(0, 2000)
       })) : []
     };
 

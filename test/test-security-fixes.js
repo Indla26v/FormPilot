@@ -52,15 +52,49 @@ const validMockBackup = {
     {
       id: 'p_test',
       name: '<script>alert(1)</script>Alex SDE',
-      personal: { fullName: 'Alex Morgan', email: 'alex@example.com' }
+      personal: { fullName: 'Alex Morgan', email: 'alex@example.com', currentLocation: 'San Francisco, CA' },
+      education: {
+        collegeName: 'University of Technology',
+        graduationYear: '2025',
+        graduationStatus: 'I am in my last year',
+        workingStatus: 'Student',
+        tenthPercentage: '92.5%',
+        tenthPercentageNumeric: '92.5',
+        twelfthPercentage: '94.0%',
+        twelfthPercentageNumeric: '94.0',
+        graduationCgpa: '8.8 / 10',
+        graduationCgpaNumeric: '8.8'
+      },
+      professional: {
+        currentOrganization: 'Acme Labs',
+        currentRole: 'AI Engineer',
+        expectedCtc: '7 - 12 LPA',
+        expectedCtcLpa: '10',
+        expectedCtcNumeric: '1000000',
+        stipendExpectation: 'Rs. 50,000 / month',
+        stipendExpectationNumeric: '50000'
+      },
+      links: {
+        linkedinUrl: 'https://linkedin.com/in/alex',
+        githubUrl: 'https://github.com/alex'
+      }
     }
   ]
 };
 const sanitizedBackup = SecurityGuardService.validateAndSanitizeBackup(validMockBackup);
-if (sanitizedBackup.profiles.length === 1 && sanitizedBackup.profiles[0].id === 'p_test') {
-  console.log('[PASS] [Schema Validator] Validated and sanitized legitimate profile structure.');
+const p0 = sanitizedBackup.profiles[0];
+if (
+  p0.education.graduationStatus === 'I am in my last year' &&
+  p0.education.tenthPercentage === '92.5%' &&
+  p0.education.tenthPercentageNumeric === '92.5' &&
+  p0.education.graduationCgpa === '8.8 / 10' &&
+  p0.education.graduationCgpaNumeric === '8.8' &&
+  p0.professional.expectedCtcLpa === '10' &&
+  p0.links.linkedinUrl === 'https://linkedin.com/in/alex'
+) {
+  console.log('[PASS] [Schema Validator] 100% of candidate profile properties preserved on import/export roundtrip.');
 } else {
-  console.error('[FAIL] [Schema Validator] Valid backup failed validation.');
+  console.error('[FAIL] [Schema Validator] Column data was stripped during roundtrip validation!', p0);
   process.exit(1);
 }
 
