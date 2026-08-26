@@ -414,16 +414,6 @@ export class GoogleFormsFillerService {
       toolbar = document.createElement('div');
       toolbar.className = 'gfaf-ai-toolbar';
 
-      const badgeDiv = document.createElement('div');
-      badgeDiv.className = 'gfaf-ai-toolbar-badge';
-      badgeDiv.innerHTML = `
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2L14.4 7.6L20 10L14.4 12.4L12 18L9.6 12.4L4 10L9.6 7.6L12 2Z"></path>
-        </svg>
-        <span>AI Answer</span>
-      `;
-      toolbar.appendChild(badgeDiv);
-
       const commentInput = document.createElement('input');
       commentInput.type = 'text';
       commentInput.className = 'gfaf-ai-comment-input';
