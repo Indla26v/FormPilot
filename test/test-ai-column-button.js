@@ -86,6 +86,17 @@ class MockElement {
     return newNode;
   }
 
+  replaceChild(newChild, oldChild) {
+    const idx = this.children.indexOf(oldChild);
+    if (idx !== -1) {
+      this.children.splice(idx, 1, newChild);
+      newChild.parentElement = this;
+      oldChild.parentElement = null;
+      return oldChild;
+    }
+    return this.appendChild(newChild);
+  }
+
   querySelector(selector) {
     const results = this.querySelectorAll(selector);
     return results.length > 0 ? results[0] : null;

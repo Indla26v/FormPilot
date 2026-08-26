@@ -1435,17 +1435,30 @@ Question:
           `;
         };
 
-        regenBtn.addEventListener('click', triggerRegen);
+      if (regenBtn.addEventListener) regenBtn.addEventListener('click', triggerRegen);
+      if (commentInput.addEventListener) {
         commentInput.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') {
             e.preventDefault();
             triggerRegen();
           }
         });
+      }
 
+      // Replace existing single-line action bar in place so only 1 line exists!
+      const existingActionBar = containerEl.querySelector('.gfaf-ai-column-action-bar');
+      if (existingActionBar && existingActionBar.parentElement) {
+        existingActionBar.parentElement.replaceChild(toolbar, existingActionBar);
+      } else {
         containerEl.appendChild(toolbar);
       }
     }
+
+    const commentInput = toolbar.querySelector('.gfaf-ai-comment-input');
+    if (commentInput && commentInput.focus) {
+      commentInput.focus();
+    }
+  }
 
     /**
      * Attach a sleek, modern pill-shaped AI button to an individual input column
