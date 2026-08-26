@@ -312,10 +312,47 @@ export class GoogleFormsFillerService {
   }
 
   /**
+   * Display or remove dynamic green processing buffer
+   */
+  static setProcessingState(containerEl, isProcessing, message = 'Processing...') {
+    if (!containerEl) return;
+    if (isProcessing) {
+      containerEl.classList.add('gfaf-processing-buffer');
+      if (containerEl.style) {
+        containerEl.style.position = 'relative';
+      }
+      let indicator = containerEl.querySelector('.gfaf-processing-indicator');
+      if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.className = 'gfaf-processing-indicator';
+        indicator.innerHTML = `
+          <span class="gfaf-processing-dot"></span>
+          <span class="gfaf-processing-text">${message}</span>
+        `;
+        containerEl.appendChild(indicator);
+      } else {
+        const textEl = indicator.querySelector('.gfaf-processing-text');
+        if (textEl) textEl.textContent = message;
+      }
+    } else {
+      containerEl.classList.remove('gfaf-processing-buffer');
+      const indicator = containerEl.querySelector('.gfaf-processing-indicator');
+      if (indicator) {
+        if (typeof indicator.remove === 'function') {
+          indicator.remove();
+        } else if (indicator.parentElement && indicator.parentElement.removeChild) {
+          indicator.parentElement.removeChild(indicator);
+        }
+      }
+    }
+  }
+
+  /**
    * Apply a sleek visual badge and highlight to filled containers
    */
   static highlightContainer(containerEl, matchInfo) {
     if (!containerEl) return;
+    this.setProcessingState(containerEl, false);
     containerEl.classList.add('gfaf-filled-highlight');
 
     let badge = containerEl.querySelector('.gfaf-match-badge');
@@ -375,6 +412,7 @@ export class GoogleFormsFillerService {
             </svg>
             <span class="gfaf-ai-column-btn-text">Synthesizing AI Answer...</span>
           `;
+          GoogleFormsFillerService.setProcessingState(containerEl, true, 'Synthesizing with AI...');
 
           try {
             const currentVal = (targetEl.value || '').trim();
@@ -417,6 +455,8 @@ export class GoogleFormsFillerService {
               </svg>
               <span class="gfaf-ai-column-btn-text">AI Answer</span>
             `;
+          } finally {
+            GoogleFormsFillerService.setProcessingState(containerEl, false);
           }
 
           btn.disabled = false;
@@ -479,6 +519,8 @@ export class GoogleFormsFillerService {
       const triggerRegen = async () => {
         if (regenBtn.disabled) return;
         const userComment = commentInput.value.trim();
+        const parentContainer = targetEl.closest('div[jscontroller]') || targetEl.parentElement?.parentElement;
+        GoogleFormsFillerService.setProcessingState(parentContainer, true, 'Refining with AI...');
         regenBtn.disabled = true;
         regenBtn.innerHTML = `
           <svg class="gfaf-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -498,9 +540,12 @@ export class GoogleFormsFillerService {
 
           if (newAnswer) {
             await GoogleFormsFillerService.typewriteInputValue(targetEl, newAnswer);
+            GoogleFormsFillerService.highlightContainer(parentContainer, { confidence: 0.98, isRag: true });
           }
         } catch (e) {
           console.warn('[GFAF] Re-generate error:', e);
+        } finally {
+          GoogleFormsFillerService.setProcessingState(parentContainer, false);
         }
 
         regenBtn.disabled = false;
@@ -674,6 +719,7 @@ export class GoogleFormsFillerService {
       for (const item of unfilledOpenEnded) {
         const { container, targetEl, questionText } = item;
         if (!targetEl.value || !targetEl.value.trim()) {
+          this.setProcessingState(container, true, 'Synthesizing with AI...');
           try {
             const chunks = await RetrievalService.retrieveRelevantChunks(questionText, 3);
             const generated = await LlmService.generateRagAnswer({
@@ -700,6 +746,8 @@ export class GoogleFormsFillerService {
             }
           } catch (ragErr) {
             console.warn('[GFAF] RAG generation fallback:', ragErr.message);
+          } finally {
+            this.setProcessingState(container, false);
           }
         }
       }

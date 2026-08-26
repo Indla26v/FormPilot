@@ -1211,8 +1211,42 @@
       return [];
     }
 
+    static setProcessingState(containerEl, isProcessing, message = 'Processing...') {
+      if (!containerEl) return;
+      if (isProcessing) {
+        containerEl.classList.add('gfaf-processing-buffer');
+        if (containerEl.style) {
+          containerEl.style.position = 'relative';
+        }
+        let indicator = containerEl.querySelector('.gfaf-processing-indicator');
+        if (!indicator) {
+          indicator = document.createElement('div');
+          indicator.className = 'gfaf-processing-indicator';
+          indicator.innerHTML = `
+            <span class="gfaf-processing-dot"></span>
+            <span class="gfaf-processing-text">${message}</span>
+          `;
+          containerEl.appendChild(indicator);
+        } else {
+          const textEl = indicator.querySelector('.gfaf-processing-text');
+          if (textEl) textEl.textContent = message;
+        }
+      } else {
+        containerEl.classList.remove('gfaf-processing-buffer');
+        const indicator = containerEl.querySelector('.gfaf-processing-indicator');
+        if (indicator) {
+          if (typeof indicator.remove === 'function') {
+            indicator.remove();
+          } else if (indicator.parentElement && indicator.parentElement.removeChild) {
+            indicator.parentElement.removeChild(indicator);
+          }
+        }
+      }
+    }
+
     static highlightContainer(containerEl, matchInfo) {
       if (!containerEl) return;
+      this.setProcessingState(containerEl, false);
       containerEl.classList.add('gfaf-filled-highlight');
       let badge = containerEl.querySelector('.gfaf-match-badge');
       if (!badge) {
@@ -1454,11 +1488,13 @@ Directly tailor and align the candidate's matching experience, technologies, and
           <span>Re-generate</span>
         `;
         toolbar.appendChild(regenBtn);
-
-        const triggerRegen = async () => {
+          const triggerRegen = async () => {
           if (regenBtn.disabled) return;
           const userComment = commentInput.value.trim();
           const currentVal = targetEl.value.trim();
+          const parentContainer = targetEl.closest('div[jscontroller]') || targetEl.parentElement?.parentElement;
+          
+          LocalFillerService.setProcessingState(parentContainer, true, 'Refining with AI...');
           regenBtn.disabled = true;
           regenBtn.innerHTML = `
             <svg class="gfaf-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1467,14 +1503,21 @@ Directly tailor and align the candidate's matching experience, technologies, and
             <span>Refining...</span>
           `;
 
-          const newAnswer = await LocalFillerService.synthesizeAiAnswer(questionText, profile, userComment, currentVal);
-          if (newAnswer) {
-            await LocalFillerService.typewriteInputValue(targetEl, newAnswer);
-            commentInput.value = '';
-            commentInput.placeholder = "Follow-up revision instruction (e.g. 'shorten to 60 words')...";
-            showToast('Answer refined with conversational memory!');
-          } else {
+          try {
+            const newAnswer = await LocalFillerService.synthesizeAiAnswer(questionText, profile, userComment, currentVal);
+            if (newAnswer) {
+              await LocalFillerService.typewriteInputValue(targetEl, newAnswer);
+              commentInput.value = '';
+              commentInput.placeholder = "Follow-up revision instruction (e.g. 'shorten to 60 words')...";
+              LocalFillerService.highlightContainer(parentContainer, { confidence: 0.98, isRag: true });
+              showToast('Answer refined with conversational memory!');
+            } else {
+              showToast('Could not re-generate answer.', 'error');
+            }
+          } catch (e) {
             showToast('Could not re-generate answer.', 'error');
+          } finally {
+            LocalFillerService.setProcessingState(parentContainer, false);
           }
 
           regenBtn.disabled = false;
@@ -1555,6 +1598,7 @@ Directly tailor and align the candidate's matching experience, technologies, and
             </svg>
             <span class="gfaf-ai-column-btn-text">Synthesizing AI Answer...</span>
           `;
+          LocalFillerService.setProcessingState(containerEl, true, 'Synthesizing with AI...');
 
           try {
             const currentVal = (targetEl.value || '').trim();
@@ -1594,6 +1638,8 @@ Directly tailor and align the candidate's matching experience, technologies, and
               <span class="gfaf-ai-column-btn-text">AI Answer</span>
             `;
             showToast('Error generating AI answer.', 'error');
+          } finally {
+            LocalFillerService.setProcessingState(containerEl, false);
           }
 
           btn.disabled = false;
@@ -1728,17 +1774,24 @@ Directly tailor and align the candidate's matching experience, technologies, and
       for (const item of unfilledOpenEnded) {
         const { container, targetEl, questionText } = item;
         if (!targetEl.value || !targetEl.value.trim()) {
-          const generatedAnswer = await this.synthesizeAiAnswer(questionText, profile);
-          if (generatedAnswer && generatedAnswer.trim()) {
-            const success = await this.typewriteInputValue(targetEl, generatedAnswer.trim());
-            if (success) {
-              results.filledCount++;
-              if (settings.autoHighlight !== false) {
-                this.highlightContainer(container, { confidence: 0.98, isRag: true });
+          this.setProcessingState(container, true, 'Synthesizing with AI...');
+          try {
+            const generatedAnswer = await this.synthesizeAiAnswer(questionText, profile);
+            if (generatedAnswer && generatedAnswer.trim()) {
+              const success = await this.typewriteInputValue(targetEl, generatedAnswer.trim());
+              if (success) {
+                results.filledCount++;
+                if (settings.autoHighlight !== false) {
+                  this.highlightContainer(container, { confidence: 0.98, isRag: true });
+                }
+                this.attachAiToolbar(container, targetEl, questionText, profile);
+                results.details.push({ question: questionText, type: 'rag_ai', value: generatedAnswer.trim() });
               }
-              this.attachAiToolbar(container, targetEl, questionText, profile);
-              results.details.push({ question: questionText, type: 'rag_ai', value: generatedAnswer.trim() });
             }
+          } catch (aiErr) {
+            console.warn('[GFAF] AI synthesis pass error:', aiErr);
+          } finally {
+            this.setProcessingState(container, false);
           }
         }
       }
