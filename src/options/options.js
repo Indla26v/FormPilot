@@ -824,13 +824,13 @@ function initActionHandlers() {
   }
 
   // Add Custom Field
-  document.getElementById('btn-add-custom-field').addEventListener('click', () => {
+  document.getElementById('btn-add-custom-field')?.addEventListener('click', () => {
     currentProfile.customFields.push({ key: '', value: '' });
     renderCustomFields();
   });
 
   // Active Profile Selector in Sidebar
-  document.getElementById('active-profile-select').addEventListener('change', async (e) => {
+  document.getElementById('active-profile-select')?.addEventListener('change', async (e) => {
     await StorageService.setActiveProfileId(e.target.value);
     await loadProfilesAndSettings();
     showToast('Switched profile');
@@ -854,7 +854,7 @@ function initActionHandlers() {
   }
 
   // Duplicate Profile (Sanitized)
-  document.getElementById('btn-duplicate-profile').addEventListener('click', async () => {
+  document.getElementById('btn-duplicate-profile')?.addEventListener('click', async () => {
     const rawName = prompt('Enter name for duplicate profile:', `${currentProfile.name} (Copy)`);
     if (rawName) {
       const cleanName = rawName.replace(/<[^>]*>?/gm, '').trim().slice(0, 100);
@@ -871,7 +871,7 @@ function initActionHandlers() {
   });
 
   // New Profile (Sanitized)
-  document.getElementById('btn-new-profile').addEventListener('click', async () => {
+  document.getElementById('btn-new-profile')?.addEventListener('click', async () => {
     const rawName = prompt('Enter profile name:', 'New Profile');
     if (rawName) {
       const cleanName = rawName.replace(/<[^>]*>?/gm, '').trim().slice(0, 100);
@@ -888,7 +888,7 @@ function initActionHandlers() {
   });
 
   // Delete Profile
-  document.getElementById('btn-delete-profile').addEventListener('click', async () => {
+  document.getElementById('btn-delete-profile')?.addEventListener('click', async () => {
     const profiles = await StorageService.getProfiles();
     if (profiles.length <= 1) {
       showToast('Cannot delete the last remaining profile.', 'error');
