@@ -4,6 +4,7 @@
  */
 
 import { StorageService } from '../StorageService.js';
+import { DocumentParserService } from './DocumentParserService.js';
 
 const STORAGE_KEYS = {
   DOCS: 'gfaf_rag_documents',
@@ -147,6 +148,65 @@ export class RagKnowledgeBaseService {
     await StorageService.set(STORAGE_KEYS.CHUNKS, updatedChunks);
 
     return true;
+  }
+
+  /**
+   * Reload & Sync a GitHub repository README document with its latest remote version
+   */
+  static async syncGitHubDocument(docId) {
+    const docs = await this.getDocuments();
+    const existingDoc = docs.find((d) => d.id === docId);
+    if (!existingDoc) {
+      throw new Error(`Document with ID "${docId}" not found.`);
+    }
+
+    const repoUrl = existingDoc.repoUrl || (existingDoc.owner && existingDoc.repo ? `https://github.com/${existingDoc.owner}/${existingDoc.repo}` : null);
+    if (!repoUrl) {
+      throw new Error('This document is not an indexed GitHub repository.');
+    }
+
+    // Fetch fresh README from GitHub
+    const freshDoc = await DocumentParserService.fetchGitHubReadme(repoUrl);
+
+    // Preserve original ID and creation time while updating content & timestamp
+    const updatedDoc = {
+      ...existingDoc,
+      title: freshDoc.title,
+      content: freshDoc.content,
+      repoUrl: freshDoc.repoUrl,
+      owner: freshDoc.owner,
+      repo: freshDoc.repo,
+      updatedAt: new Date().toISOString()
+    };
+
+    return await this.addDocument(updatedDoc);
+  }
+
+  /**
+   * Sync all indexed GitHub repositories to ensure READMEs are up to date
+   */
+  static async syncAllGitHubDocuments() {
+    const docs = await this.getDocuments();
+    const ghDocs = docs.filter((d) => d.type === 'github_readme' || d.source === 'github' || Boolean(d.repoUrl));
+
+    const results = {
+      total: ghDocs.length,
+      synced: 0,
+      failed: 0,
+      errors: []
+    };
+
+    for (const doc of ghDocs) {
+      try {
+        await this.syncGitHubDocument(doc.id);
+        results.synced++;
+      } catch (err) {
+        results.failed++;
+        results.errors.push({ docId: doc.id, title: doc.title, error: err.message });
+      }
+    }
+
+    return results;
   }
 
   /**

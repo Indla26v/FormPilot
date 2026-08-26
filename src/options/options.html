@@ -413,10 +413,16 @@
                 <h3 class="section-title">Ingested Knowledge Base Documents</h3>
                 <p class="section-sub">These documents are chunked and queried in real-time to answer complex form questions with factual accuracy.</p>
               </div>
-              <button type="button" class="pill-btn pill-btn-danger-ghost" id="btn-clear-knowledge-base">
-                <span class="btn-icon" id="icon-clear-kb"></span>
-                <span>Clear All Docs</span>
-              </button>
+              <div class="card-header-actions">
+                <button type="button" class="pill-btn pill-btn-secondary" id="btn-sync-all-github" title="Reload and sync latest README from all indexed GitHub repositories">
+                  <span class="btn-icon" id="icon-sync-all-kb"></span>
+                  <span>Sync All Repos</span>
+                </button>
+                <button type="button" class="pill-btn pill-btn-danger-ghost" id="btn-clear-knowledge-base">
+                  <span class="btn-icon" id="icon-clear-kb"></span>
+                  <span>Clear All Docs</span>
+                </button>
+              </div>
             </div>
 
             <div class="docs-list-container" id="docs-list-container">

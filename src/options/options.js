@@ -66,6 +66,7 @@ function injectIcons() {
   // RAG & LLM Icons
   safeSetIcon('icon-dropzone-upload', ICONS.upload);
   safeSetIcon('icon-github-fetch', ICONS.download);
+  safeSetIcon('icon-sync-all-kb', ICONS.refresh);
   safeSetIcon('icon-clear-kb', ICONS.trash);
   safeSetIcon('icon-detect-models', ICONS.search);
   safeSetIcon('icon-test-llm', ICONS.zap);
@@ -339,6 +340,7 @@ async function initRagHandlers() {
   const fetchGithubBtn = document.getElementById('btn-fetch-github');
   const githubInput = document.getElementById('input-github-url');
   const clearKbBtn = document.getElementById('btn-clear-knowledge-base');
+  const syncAllGithubBtn = document.getElementById('btn-sync-all-github');
 
   // Click dropzone to browse
   if (dropzone && fileInput) {
@@ -393,6 +395,31 @@ async function initRagHandlers() {
     });
   }
 
+  // Sync All GitHub Repos
+  if (syncAllGithubBtn) {
+    syncAllGithubBtn.addEventListener('click', async () => {
+      syncAllGithubBtn.disabled = true;
+      syncAllGithubBtn.innerHTML = `<span class="btn-icon spinning">${ICONS.refresh}</span><span>Syncing Repos...</span>`;
+
+      try {
+        const res = await RagKnowledgeBaseService.syncAllGitHubDocuments();
+        await renderRagDocuments();
+        if (res.synced > 0) {
+          showToast(`Successfully synced ${res.synced} GitHub repo README(s)!`, 'success');
+        } else if (res.total === 0) {
+          showToast('No GitHub repos to sync. Add a repo above first.', 'info');
+        } else {
+          showToast('Failed to sync some repos. Please check connection.', 'error');
+        }
+      } catch (err) {
+        showToast(`Sync error: ${err.message}`, 'error');
+      } finally {
+        syncAllGithubBtn.disabled = false;
+        syncAllGithubBtn.innerHTML = `<span class="btn-icon" id="icon-sync-all-kb">${ICONS.refresh}</span><span>Sync All Repos</span>`;
+      }
+    });
+  }
+
   // Clear Knowledge Base
   if (clearKbBtn) {
     clearKbBtn.addEventListener('click', async () => {
@@ -422,10 +449,16 @@ async function handleResumeFileUpload(file) {
 
 async function renderRagDocuments() {
   const container = document.getElementById('docs-list-container');
+  const syncAllGithubBtn = document.getElementById('btn-sync-all-github');
   if (!container) return;
 
   const docs = await RagKnowledgeBaseService.getDocuments();
   container.innerHTML = '';
+
+  const hasGithubDocs = docs.some((d) => d.type === 'github_readme' || d.source === 'github' || Boolean(d.repoUrl));
+  if (syncAllGithubBtn) {
+    syncAllGithubBtn.style.display = hasGithubDocs ? 'inline-flex' : 'none';
+  }
 
   if (docs.length === 0) {
     container.innerHTML = `<div class="empty-state">No documents ingested yet. Upload a resume or add a GitHub repo above.</div>`;
@@ -436,23 +469,52 @@ async function renderRagDocuments() {
     const card = document.createElement('div');
     card.className = 'doc-item-card';
 
-    const typeBadgeClass = doc.type === 'pdf' ? 'badge-pdf' : doc.type === 'github_readme' ? 'badge-github' : 'badge-doc';
-    const typeLabel = doc.type === 'pdf' ? 'Resume PDF' : doc.type === 'github_readme' ? 'GitHub Repo' : 'Document';
+    const isGitHub = doc.type === 'github_readme' || doc.source === 'github' || Boolean(doc.repoUrl);
+    const typeBadgeClass = doc.type === 'pdf' ? 'badge-pdf' : isGitHub ? 'badge-github' : 'badge-doc';
+    const typeLabel = doc.type === 'pdf' ? 'Resume PDF' : isGitHub ? 'GitHub Repo' : 'Document';
+
+    let dateText = `Added on ${new Date(doc.createdAt).toLocaleDateString()}`;
+    if (doc.updatedAt) {
+      dateText = `Synced on ${new Date(doc.updatedAt).toLocaleDateString()} at ${new Date(doc.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    }
 
     card.innerHTML = `
       <div class="doc-item-left">
         <span class="doc-type-badge ${typeBadgeClass}">${typeLabel}</span>
         <div>
           <div class="doc-meta-title">${escapeHtml(doc.title)}</div>
-          <div class="doc-meta-sub">${doc.chunkCount || 0} indexed chunks • Added on ${new Date(doc.createdAt).toLocaleDateString()}</div>
+          <div class="doc-meta-sub">${doc.chunkCount || 0} indexed chunks • ${dateText}</div>
         </div>
       </div>
       <div class="doc-item-actions">
+        ${isGitHub ? `
+          <button type="button" class="pill-btn-small pill-btn-secondary doc-sync-btn" title="Reload & sync latest README from GitHub">
+            <span class="btn-icon">${ICONS.refresh}</span>
+            <span>Sync</span>
+          </button>
+        ` : ''}
         <button type="button" class="pill-btn-small pill-btn-danger-ghost doc-delete-btn" title="Delete document">
           ${ICONS.trash}
         </button>
       </div>
     `;
+
+    const syncBtn = card.querySelector('.doc-sync-btn');
+    if (syncBtn) {
+      syncBtn.addEventListener('click', async () => {
+        syncBtn.disabled = true;
+        syncBtn.innerHTML = `<span class="btn-icon spinning">${ICONS.refresh}</span><span>Syncing...</span>`;
+        try {
+          const res = await RagKnowledgeBaseService.syncGitHubDocument(doc.id);
+          await renderRagDocuments();
+          showToast(`Synced latest README for "${doc.title}" (${res.chunksCount} chunks)!`, 'success');
+        } catch (err) {
+          showToast(`GitHub sync error: ${err.message}`, 'error');
+          syncBtn.disabled = false;
+          syncBtn.innerHTML = `<span class="btn-icon">${ICONS.refresh}</span><span>Sync</span>`;
+        }
+      });
+    }
 
     card.querySelector('.doc-delete-btn').addEventListener('click', async () => {
       await RagKnowledgeBaseService.deleteDocument(doc.id);
