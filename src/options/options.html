@@ -515,6 +515,138 @@
                 <div class="callout-title">Windows Ollama Quick Setup Tip:</div>
                 <p class="callout-text">To allow Chrome extensions to access Ollama, ensure your Windows environment variable <code>OLLAMA_ORIGINS</code> is set to <code>*</code>, then restart Ollama.</p>
               </div>
+
+              <!-- Laptop Hardware & Recommended Models Guide -->
+              <div class="hardware-specs-card">
+                <div class="specs-header">
+                  <div class="specs-title-row">
+                    <svg class="specs-header-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                      <line x1="8" y1="21" x2="16" y2="21"></line>
+                      <line x1="12" y1="17" x2="12" y2="21"></line>
+                    </svg>
+                    <h4 class="specs-title">Laptop Hardware & Recommended Ollama Models</h4>
+                  </div>
+                  <p class="specs-subtitle">Match your laptop's hardware tier to the optimal local model for fast token streaming and accurate answers.</p>
+                </div>
+
+                <div class="specs-tiers-grid">
+                  <!-- Tier 1: Entry Level -->
+                  <div class="spec-tier-card">
+                    <div class="spec-tier-top">
+                      <span class="spec-badge badge-entry">Entry-Level • 8 GB RAM</span>
+                      <span class="spec-target-tag">CPU / Integrated GPU</span>
+                    </div>
+                    <div class="spec-models-section">
+                      <span class="spec-section-label">Recommended Models:</span>
+                      <div class="spec-model-chips">
+                        <span class="spec-model-pill">llama3.2:1b</span>
+                        <span class="spec-model-pill">llama3.2:3b</span>
+                        <span class="spec-model-pill">phi3:mini</span>
+                        <span class="spec-model-pill">qwen2.5:1.5b</span>
+                      </div>
+                    </div>
+                    <div class="spec-hardware-list">
+                      <div class="spec-hw-row">
+                        <span class="spec-hw-label">CPU:</span>
+                        <span class="spec-hw-val">Intel i5 (8th+) / Ryzen 5 / Apple M1</span>
+                      </div>
+                      <div class="spec-hw-row">
+                        <span class="spec-hw-label">RAM:</span>
+                        <span class="spec-hw-val">8 GB RAM</span>
+                      </div>
+                      <div class="spec-hw-row">
+                        <span class="spec-hw-label">GPU:</span>
+                        <span class="spec-hw-val">Intel Iris Xe / AMD Radeon / M1</span>
+                      </div>
+                      <div class="spec-hw-row">
+                        <span class="spec-hw-label">Disk:</span>
+                        <span class="spec-hw-val">10 GB Free SSD Space</span>
+                      </div>
+                    </div>
+                    <div class="spec-command-box">
+                      <span class="spec-cmd-label">Install:</span>
+                      <code>ollama pull llama3.2</code>
+                    </div>
+                  </div>
+
+                  <!-- Tier 2: Recommended (Balanced) -->
+                  <div class="spec-tier-card spec-tier-featured">
+                    <div class="spec-tier-top">
+                      <span class="spec-badge badge-recommended">Recommended • 16 GB RAM</span>
+                      <span class="spec-target-tag">Mid-Range GPU</span>
+                    </div>
+                    <div class="spec-models-section">
+                      <span class="spec-section-label">Recommended Models:</span>
+                      <div class="spec-model-chips">
+                        <span class="spec-model-pill highlight">llama3.2:3b</span>
+                        <span class="spec-model-pill">mistral:7b</span>
+                        <span class="spec-model-pill">deepseek-r1:7b</span>
+                      </div>
+                    </div>
+                    <div class="spec-hardware-list">
+                      <div class="spec-hw-row">
+                        <span class="spec-hw-label">CPU:</span>
+                        <span class="spec-hw-val">Intel i7 (11th+) / Ryzen 7 / M-Series</span>
+                      </div>
+                      <div class="spec-hw-row">
+                        <span class="spec-hw-label">RAM:</span>
+                        <span class="spec-hw-val">16 GB RAM</span>
+                      </div>
+                      <div class="spec-hw-row">
+                        <span class="spec-hw-label">GPU:</span>
+                        <span class="spec-hw-val">GTX 1650 / RTX 3050 / RTX 4050 (4-6 GB)</span>
+                      </div>
+                      <div class="spec-hw-row">
+                        <span class="spec-hw-label">Disk:</span>
+                        <span class="spec-hw-val">20 GB Free NVMe SSD</span>
+                      </div>
+                    </div>
+                    <div class="spec-command-box">
+                      <span class="spec-cmd-label">Install:</span>
+                      <code>ollama pull mistral</code>
+                    </div>
+                  </div>
+
+                  <!-- Tier 3: Power User -->
+                  <div class="spec-tier-card">
+                    <div class="spec-tier-top">
+                      <span class="spec-badge badge-power">Power User • 16-32 GB RAM</span>
+                      <span class="spec-target-tag">High-End GPU</span>
+                    </div>
+                    <div class="spec-models-section">
+                      <span class="spec-section-label">Recommended Models:</span>
+                      <div class="spec-model-chips">
+                        <span class="spec-model-pill">llama3.1:8b</span>
+                        <span class="spec-model-pill">deepseek-r1:8b</span>
+                        <span class="spec-model-pill">qwen2.5:7b</span>
+                      </div>
+                    </div>
+                    <div class="spec-hardware-list">
+                      <div class="spec-hw-row">
+                        <span class="spec-hw-label">CPU:</span>
+                        <span class="spec-hw-val">Intel Core i7/i9 (12th+) / Ryzen 7/9</span>
+                      </div>
+                      <div class="spec-hw-row">
+                        <span class="spec-hw-label">RAM:</span>
+                        <span class="spec-hw-val">16 GB – 32 GB RAM</span>
+                      </div>
+                      <div class="spec-hw-row">
+                        <span class="spec-hw-label">GPU:</span>
+                        <span class="spec-hw-val">RTX 3060 / 4060 / 4070+ (8 GB+ VRAM)</span>
+                      </div>
+                      <div class="spec-hw-row">
+                        <span class="spec-hw-label">Disk:</span>
+                        <span class="spec-hw-val">30 GB Free NVMe SSD</span>
+                      </div>
+                    </div>
+                    <div class="spec-command-box">
+                      <span class="spec-cmd-label">Install:</span>
+                      <code>ollama pull deepseek-r1:8b</code>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- Gemini Fields -->
