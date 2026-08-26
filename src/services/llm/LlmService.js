@@ -92,9 +92,26 @@ class OllamaProvider extends BaseLlmProvider {
     return (data.models || []).map((m) => m.name);
   }
 
+  async resolveModel(endpoint, requestedModel) {
+    if (!requestedModel) return 'gemma4:e4b';
+    try {
+      const models = await this.listModels(endpoint);
+      if (models && models.length > 0) {
+        if (models.includes(requestedModel)) return requestedModel;
+        const prefix = models.find((m) => m.startsWith(requestedModel + ':') || m.toLowerCase().startsWith(requestedModel.toLowerCase()));
+        if (prefix) return prefix;
+        const partial = models.find((m) => m.toLowerCase().includes(requestedModel.toLowerCase()));
+        if (partial) return partial;
+        return models[0];
+      }
+    } catch (e) {}
+    return requestedModel;
+  }
+
   async testConnection(config) {
     const endpoint = (config.ollamaEndpoint || 'http://localhost:11434').replace(/\/+$/, '');
-    const model = (config.ollamaModel || 'gemma4:e4b').trim();
+    const rawModel = (config.ollamaModel || 'gemma4:e4b').trim();
+    const model = await this.resolveModel(endpoint, rawModel);
 
     try {
       // 1. Verify endpoint and list models
@@ -108,7 +125,7 @@ class OllamaProvider extends BaseLlmProvider {
         ],
         stream: false,
         options: {
-          num_predict: 45,
+          num_predict: 150,
           temperature: 0.2
         }
       };
@@ -119,7 +136,7 @@ class OllamaProvider extends BaseLlmProvider {
         body: JSON.stringify(payload)
       });
 
-      const answer = data?.message?.content?.trim() || 'Model is ready.';
+      const answer = data?.message?.content?.trim() || data?.response?.trim() || 'Model is ready.';
 
       return {
         success: true,
@@ -137,7 +154,8 @@ class OllamaProvider extends BaseLlmProvider {
 
   async generate({ prompt, systemPrompt, config }) {
     const endpoint = (config.ollamaEndpoint || 'http://localhost:11434').replace(/\/+$/, '');
-    const model = (config.ollamaModel || 'gemma4:e4b').trim();
+    const rawModel = (config.ollamaModel || 'gemma4:e4b').trim();
+    const model = await this.resolveModel(endpoint, rawModel);
 
     const payload = {
       model: model,
@@ -148,7 +166,7 @@ class OllamaProvider extends BaseLlmProvider {
       stream: false,
       options: {
         temperature: config.temperature !== undefined ? config.temperature : 0.3,
-        num_predict: config.maxTokens || 450
+        num_predict: config.maxTokens || 1500
       }
     };
 
@@ -158,7 +176,7 @@ class OllamaProvider extends BaseLlmProvider {
       body: JSON.stringify(payload)
     });
 
-    return data?.message?.content?.trim() || '';
+    return data?.message?.content?.trim() || data?.response?.trim() || '';
   }
 }
 

@@ -1487,18 +1487,43 @@ Directly tailor and align the candidate's matching experience, technologies, and
 
         if (llmConfig.provider === 'ollama') {
           const endpoint = (llmConfig.ollamaEndpoint || 'http://localhost:11434').replace(/\/+$/, '');
+          const rawModel = (llmConfig.ollamaModel || 'gemma4:e4b').trim();
+
+          // Auto-resolve installed Ollama model
+          let resolvedModel = rawModel;
+          try {
+            const tagsRes = await new Promise((resolve) => {
+              if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+                chrome.runtime.sendMessage({
+                  action: 'GENERATE_LLM_RAG',
+                  endpoint: `${endpoint}/api/tags`
+                }, (r) => resolve(r));
+              } else {
+                resolve(null);
+              }
+            });
+            if (tagsRes && tagsRes.success && Array.isArray(tagsRes.data?.models)) {
+              const installed = tagsRes.data.models.map((m) => m.name);
+              if (!installed.includes(rawModel)) {
+                const matched = installed.find((m) => m.startsWith(rawModel + ':') || m.toLowerCase().startsWith(rawModel.toLowerCase()) || m.toLowerCase().includes(rawModel.toLowerCase()));
+                if (matched) resolvedModel = matched;
+                else if (installed.length > 0) resolvedModel = installed[0];
+              }
+            }
+          } catch (e) {}
+
           const proxyRes = await new Promise((resolve) => {
             if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
               chrome.runtime.sendMessage({
                 action: 'GENERATE_LLM_RAG',
                 endpoint: `${endpoint}/api/chat`,
                 payload: {
-                  model: llmConfig.ollamaModel || 'llama3.2',
+                  model: resolvedModel,
                   messages: messages,
                   stream: false,
                   options: {
                     temperature: 0.3,
-                    num_predict: 400
+                    num_predict: 1500
                   }
                 }
               }, (r) => resolve(r));
@@ -1507,8 +1532,12 @@ Directly tailor and align the candidate's matching experience, technologies, and
             }
           });
 
-          if (proxyRes && proxyRes.success && proxyRes.data?.message?.content) {
-            generatedAnswer = proxyRes.data.message.content.trim();
+          if (proxyRes && proxyRes.success) {
+            generatedAnswer = (proxyRes.data?.message?.content || proxyRes.data?.response || '').trim();
+          } else if (proxyRes && !proxyRes.success) {
+            const errDetail = proxyRes.error || proxyRes.data?.error || 'Ollama model error';
+            console.warn('[GFAF] Ollama generation failed:', errDetail);
+            throw new Error(typeof errDetail === 'string' ? errDetail : JSON.stringify(errDetail));
           }
         } else if (llmConfig.provider === 'gemini' && llmConfig.geminiApiKey) {
           const url = `https://generativelanguage.googleapis.com/v1beta/models/${llmConfig.geminiModel || 'gemini-1.5-flash'}:generateContent?key=${llmConfig.geminiApiKey}`;
@@ -1617,10 +1646,10 @@ Directly tailor and align the candidate's matching experience, technologies, and
               LocalFillerService.highlightContainer(parentContainer, { confidence: 0.98, isRag: true });
               showToast('Answer refined with conversational memory!');
             } else {
-              showToast('Could not re-generate answer.', 'error');
+              showToast('Could not re-generate answer. Check LLM settings.', 'error');
             }
           } catch (e) {
-            showToast('Could not re-generate answer.', 'error');
+            showToast(e.message || 'Could not re-generate answer.', 'error');
           } finally {
             LocalFillerService.setProcessingState(parentContainer, false);
           }
@@ -1742,7 +1771,7 @@ Directly tailor and align the candidate's matching experience, technologies, and
               </svg>
               <span class="gfaf-ai-column-btn-text">AI Answer</span>
             `;
-            showToast('Error generating AI answer.', 'error');
+            showToast(err.message || 'Error generating AI answer.', 'error');
           } finally {
             LocalFillerService.setProcessingState(containerEl, false);
           }
