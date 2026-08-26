@@ -9,6 +9,7 @@ import { DEFAULT_PROFILE } from '../utils/constants.js';
 import { DocumentParserService } from '../services/rag/DocumentParserService.js';
 import { RagKnowledgeBaseService } from '../services/rag/RagKnowledgeBaseService.js';
 import { LlmService, DEFAULT_LLM_CONFIG } from '../services/llm/LlmService.js';
+import { SecurityGuardService } from '../services/security/SecurityGuardService.js';
 
 let currentProfile = null;
 let currentSettings = null;
@@ -377,6 +378,14 @@ async function initRagHandlers() {
         return;
       }
 
+      // Strict pre-validation
+      try {
+        SecurityGuardService.validateGitHubUrl(url);
+      } catch (valErr) {
+        showToast(valErr.message, 'error');
+        return;
+      }
+
       fetchGithubBtn.disabled = true;
       fetchGithubBtn.innerHTML = `<span>Fetching...</span>`;
 
@@ -437,13 +446,15 @@ async function initRagHandlers() {
 
 async function handleResumeFileUpload(file) {
   try {
+    // Pre-validate file metadata
+    SecurityGuardService.validateDocumentFile(file);
     showToast(`Parsing ${file.name}...`, 'info');
     const doc = await DocumentParserService.parseFile(file);
     await RagKnowledgeBaseService.addDocument(doc);
     await renderRagDocuments();
     showToast(`Indexed "${doc.title}" with ${doc.chunkCount} knowledge chunks!`, 'success');
   } catch (err) {
-    showToast(`Error processing file: ${err.message}`, 'error');
+    showToast(`File error: ${err.message}`, 'error');
   }
 }
 

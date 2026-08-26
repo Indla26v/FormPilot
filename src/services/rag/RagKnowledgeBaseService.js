@@ -18,23 +18,57 @@ export class RagKnowledgeBaseService {
   static chunkDocument(doc, options = { maxChunkSize: 500, overlap: 60 }) {
     if (!doc || !doc.content) return [];
 
-    const rawText = doc.content;
+    const rawText = String(doc.content || '').slice(0, 500000);
     const lines = rawText.split('\n');
     const chunks = [];
+    const MAX_CHUNKS = 200; // Hard cap per document
 
-    let currentSectionTitle = doc.title || 'General';
+    let currentSectionTitle = String(doc.title || 'General').slice(0, 100);
     let currentBuffer = [];
     let currentWordCount = 0;
     let chunkIndex = 0;
 
-    for (let i = 0; i < lines.length; i++) {
+    const sanitizeChunkText = (txt) => {
+      return String(txt || '')
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .slice(0, 5000)
+        .trim();
+    };
+
+    for (let i = 0; i < lines.length && chunks.length < MAX_CHUNKS; i++) {
       const line = lines[i].trim();
       if (!line) continue;
 
       // Detect Markdown / section headers
       if (line.startsWith('#') || line.endsWith(':') || /^(experience|projects|education|skills|architecture|overview|features)/i.test(line)) {
         if (currentBuffer.length > 0) {
-          const chunkText = currentBuffer.join('\n');
+          const chunkText = sanitizeChunkText(currentBuffer.join('\n'));
+          if (chunkText.length > 10) {
+            chunks.push({
+              id: `${doc.id}_chunk_${chunkIndex++}`,
+              docId: doc.id,
+              docTitle: doc.title,
+              sectionTitle: currentSectionTitle,
+              source: doc.source || 'document',
+              text: chunkText,
+              wordCount: currentWordCount,
+              createdAt: new Date().toISOString()
+            });
+          }
+          currentBuffer = [];
+          currentWordCount = 0;
+        }
+        currentSectionTitle = line.replace(/^[#\*\-\s]+/, '').replace(/:$/, '').slice(0, 100).trim();
+      }
+
+      const words = line.split(/\s+/).filter(Boolean);
+      currentBuffer.push(line);
+      currentWordCount += words.length;
+
+      if (currentWordCount >= options.maxChunkSize && chunks.length < MAX_CHUNKS) {
+        const chunkText = sanitizeChunkText(currentBuffer.join('\n'));
+        if (chunkText.length > 10) {
           chunks.push({
             id: `${doc.id}_chunk_${chunkIndex++}`,
             docId: doc.id,
@@ -45,28 +79,7 @@ export class RagKnowledgeBaseService {
             wordCount: currentWordCount,
             createdAt: new Date().toISOString()
           });
-          currentBuffer = [];
-          currentWordCount = 0;
         }
-        currentSectionTitle = line.replace(/^[#\*\-\s]+/, '').replace(/:$/, '').trim();
-      }
-
-      const words = line.split(/\s+/).filter(Boolean);
-      currentBuffer.push(line);
-      currentWordCount += words.length;
-
-      if (currentWordCount >= options.maxChunkSize) {
-        const chunkText = currentBuffer.join('\n');
-        chunks.push({
-          id: `${doc.id}_chunk_${chunkIndex++}`,
-          docId: doc.id,
-          docTitle: doc.title,
-          sectionTitle: currentSectionTitle,
-          source: doc.source || 'document',
-          text: chunkText,
-          wordCount: currentWordCount,
-          createdAt: new Date().toISOString()
-        });
 
         // Sliding window overlap
         const lastFewLines = currentBuffer.slice(-2);
@@ -75,9 +88,9 @@ export class RagKnowledgeBaseService {
       }
     }
 
-    if (currentBuffer.length > 0) {
-      const chunkText = currentBuffer.join('\n');
-      if (chunkText.trim().length > 10) {
+    if (currentBuffer.length > 0 && chunks.length < MAX_CHUNKS) {
+      const chunkText = sanitizeChunkText(currentBuffer.join('\n'));
+      if (chunkText.length > 10) {
         chunks.push({
           id: `${doc.id}_chunk_${chunkIndex++}`,
           docId: doc.id,
@@ -100,24 +113,47 @@ export class RagKnowledgeBaseService {
   static async addDocument(doc) {
     if (!doc || !doc.content) throw new Error('Invalid document');
 
-    const chunks = this.chunkDocument(doc);
-    doc.chunkCount = chunks.length;
+    // Sanitize document metadata
+    const cleanDoc = {
+      id: String(doc.id || `doc_${Date.now()}`).slice(0, 64),
+      title: String(doc.title || 'Untitled Document').slice(0, 150),
+      type: String(doc.type || 'document').slice(0, 40),
+      source: String(doc.source || 'document').slice(0, 40),
+      repoUrl: doc.repoUrl ? String(doc.repoUrl).slice(0, 500) : undefined,
+      owner: doc.owner ? String(doc.owner).slice(0, 80) : undefined,
+      repo: doc.repo ? String(doc.repo).slice(0, 80) : undefined,
+      fileName: doc.fileName ? String(doc.fileName).slice(0, 150) : undefined,
+      content: String(doc.content || '').slice(0, 500000),
+      createdAt: doc.createdAt || new Date().toISOString(),
+      updatedAt: doc.updatedAt || undefined
+    };
+
+    const chunks = this.chunkDocument(cleanDoc);
+    cleanDoc.chunkCount = chunks.length;
 
     // Load existing docs
     const docs = (await StorageService.get(STORAGE_KEYS.DOCS)) || [];
     // Remove if duplicate id exists
-    const updatedDocs = docs.filter((d) => d.id !== doc.id);
-    updatedDocs.unshift(doc);
+    const updatedDocs = docs.filter((d) => d.id !== cleanDoc.id);
+    
+    // Hard cap: keep maximum 50 documents in knowledge base to prevent quota overflow
+    if (updatedDocs.length >= 50) {
+      const removed = updatedDocs.pop();
+      const allExistingChunks = (await StorageService.get(STORAGE_KEYS.CHUNKS)) || [];
+      await StorageService.set(STORAGE_KEYS.CHUNKS, allExistingChunks.filter((c) => c.docId !== removed.id));
+    }
+
+    updatedDocs.unshift(cleanDoc);
 
     // Load existing chunks
     const allChunks = (await StorageService.get(STORAGE_KEYS.CHUNKS)) || [];
-    const filteredChunks = allChunks.filter((c) => c.docId !== doc.id);
+    const filteredChunks = allChunks.filter((c) => c.docId !== cleanDoc.id);
     filteredChunks.push(...chunks);
 
     await StorageService.set(STORAGE_KEYS.DOCS, updatedDocs);
     await StorageService.set(STORAGE_KEYS.CHUNKS, filteredChunks);
 
-    return { document: doc, chunksCount: chunks.length };
+    return { document: cleanDoc, chunksCount: chunks.length };
   }
 
   /**

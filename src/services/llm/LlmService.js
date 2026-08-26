@@ -5,6 +5,7 @@
  */
 
 import { StorageService } from '../StorageService.js';
+import { SecurityGuardService } from '../security/SecurityGuardService.js';
 
 export const LLM_STORAGE_KEYS = {
   CONFIG: 'gfaf_llm_config'
@@ -366,12 +367,13 @@ export class LlmService {
   }
 
   static async saveConfig(config) {
-    await StorageService.set(LLM_STORAGE_KEYS.CONFIG, config);
+    const safeConfig = SecurityGuardService.validateLlmConfig(config);
+    await StorageService.set(LLM_STORAGE_KEYS.CONFIG, safeConfig);
     return true;
   }
 
   static async testConnection(config = null) {
-    const activeConfig = config || (await this.getConfig());
+    const activeConfig = config ? SecurityGuardService.validateLlmConfig(config) : (await this.getConfig());
     const provider = this.getProvider(activeConfig.provider);
     return await provider.testConnection(activeConfig);
   }
@@ -440,10 +442,11 @@ CRITICAL ANTI-HALLUCINATION GUARD:
 You must strictly restrict all technical references, frameworks, and tools to the candidate's actual Skills and Resume/Project context provided above.
 DO NOT introduce, hallucinate, or assume any third-party tools (e.g., Cypress, Selenium, Jest, Docker, Kubernetes, etc.) if they are not listed in the candidate's profile/context.\n\n`;
 
-    if (jobDescription && jobDescription.trim()) {
+    const cleanJd = SecurityGuardService.validateJobDescription(jobDescription);
+    if (cleanJd) {
       userPrompt += `TARGET JOB DESCRIPTION / ROLE REQUIREMENTS (Alignment Directive):
 """
-${jobDescription.trim()}
+${cleanJd}
 """
 ALIGNMENT INSTRUCTION: Tailor and align your response to directly emphasize the requirements, skills, and qualifications mentioned in the Target Job Description above, while staying completely truthful to the candidate profile facts.\n\n`;
     }

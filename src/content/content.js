@@ -1420,10 +1420,18 @@ DO NOT introduce, hallucinate, or assume any third-party tools (e.g., Cypress, S
 
         // Inject session-scoped Job Description alignment if provided on current page
         if (sessionJobDescription && sessionJobDescription.trim()) {
-          const sanitizedJd = sessionJobDescription.trim().slice(0, 3500);
+          let sanitizedJd = sessionJobDescription.trim().slice(0, 5000);
+          // Strip HTML tags and script injections
+          sanitizedJd = sanitizedJd.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '').replace(/<[^>]+>/g, ' ');
+          // Neutralize prompt injection phrases
+          sanitizedJd = sanitizedJd
+            .replace(/ignore\s+(all\s+)?(previous|prior|above)\s+instructions?/gi, '[REDACTED_PROMPT_COMMAND]')
+            .replace(/system\s+prompt\s+(leak|override|reveal)/gi, '[REDACTED_PROMPT_COMMAND]')
+            .replace(/print\s+(the\s+)?(api[_\s]?key|credentials?|password)/gi, '[REDACTED_PROMPT_COMMAND]');
+
           baseContextPrompt += `\n\nTARGET JOB DESCRIPTION / ROLE REQUIREMENTS (Session Alignment):
 """
-${sanitizedJd}
+${sanitizedJd.trim()}
 """
 ALIGNMENT DIRECTIVE:
 Directly tailor and align the candidate's matching experience, technologies, and skills to address the key qualifications and keywords in the Job Description above, while remaining completely truthful to candidate profile facts.`;

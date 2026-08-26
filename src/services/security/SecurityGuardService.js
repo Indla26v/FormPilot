@@ -114,17 +114,17 @@ export class SecurityGuardService {
       } : {},
 
       links: typeof clean.links === 'object' && clean.links ? {
-        linkedinUrl: String(clean.links.linkedinUrl || '').slice(0, 300),
-        githubUrl: String(clean.links.githubUrl || '').slice(0, 300),
-        portfolioUrl: String(clean.links.portfolioUrl || '').slice(0, 300),
-        projectDemoUrl: String(clean.links.projectDemoUrl || '').slice(0, 300),
-        resumeUrl: String(clean.links.resumeUrl || '').slice(0, 300)
+        linkedinUrl: this.validateProfileUrl(clean.links.linkedinUrl),
+        githubUrl: this.validateProfileUrl(clean.links.githubUrl),
+        portfolioUrl: this.validateProfileUrl(clean.links.portfolioUrl),
+        projectDemoUrl: this.validateProfileUrl(clean.links.projectDemoUrl),
+        resumeUrl: this.validateProfileUrl(clean.links.resumeUrl)
       } : (typeof clean.social === 'object' && clean.social ? {
-        linkedinUrl: String(clean.social.linkedinUrl || '').slice(0, 300),
-        githubUrl: String(clean.social.githubUrl || '').slice(0, 300),
-        portfolioUrl: String(clean.social.portfolioUrl || '').slice(0, 300),
-        projectDemoUrl: String(clean.social.projectDemoUrl || '').slice(0, 300),
-        resumeUrl: String(clean.social.resumeUrl || '').slice(0, 300)
+        linkedinUrl: this.validateProfileUrl(clean.social.linkedinUrl),
+        githubUrl: this.validateProfileUrl(clean.social.githubUrl),
+        portfolioUrl: this.validateProfileUrl(clean.social.portfolioUrl),
+        projectDemoUrl: this.validateProfileUrl(clean.social.projectDemoUrl),
+        resumeUrl: this.validateProfileUrl(clean.social.resumeUrl)
       } : {}),
 
       skills: Array.isArray(clean.skills) ? clean.skills.map((s) => {
@@ -260,5 +260,271 @@ export class SecurityGuardService {
     }
 
     return sanitized;
+  }
+
+  /**
+   * Strict validation for GitHub repository URLs
+   * @param {string} rawUrl
+   * @returns {{ owner: string, repo: string, cleanRepoName: string, canonicalUrl: string }}
+   */
+  static validateGitHubUrl(rawUrl) {
+    if (!rawUrl || typeof rawUrl !== 'string') {
+      throw new Error('GitHub repository URL is required.');
+    }
+
+    const trimmed = rawUrl.trim();
+    if (trimmed.length > 500) {
+      throw new Error('URL is too long (maximum 500 characters).');
+    }
+
+    // Prohibit embedded credentials or suspicious encoded traversal
+    if (/[\x00-\x1F\x7F]/.test(trimmed) || /%2e%2e/i.test(trimmed) || /\.\./.test(trimmed)) {
+      throw new Error('URL contains prohibited characters or traversal sequences.');
+    }
+
+    let parsed;
+    try {
+      parsed = new URL(trimmed);
+    } catch {
+      throw new Error('Invalid URL format. Please provide a valid https://github.com/owner/repo URL.');
+    }
+
+    // Enforce HTTPS
+    if (parsed.protocol !== 'https:') {
+      throw new Error('GitHub URL must use secure HTTPS protocol (https://).');
+    }
+
+    // Hostname must strictly be github.com or www.github.com
+    const host = parsed.hostname.toLowerCase();
+    if (host !== 'github.com' && host !== 'www.github.com') {
+      throw new Error('Only public repositories on github.com are permitted.');
+    }
+
+    // Reject usernames or passwords in URL
+    if (parsed.username || parsed.password) {
+      throw new Error('Embedded user credentials in GitHub URLs are not allowed.');
+    }
+
+    // Reject non-standard ports
+    if (parsed.port && parsed.port !== '443') {
+      throw new Error('Non-standard network ports are not permitted.');
+    }
+
+    // Pathname must match /owner/repo pattern
+    const cleanPath = parsed.pathname.replace(/^\/+/, '').replace(/\/+$/, '');
+    const pathParts = cleanPath.split('/').filter(Boolean);
+
+    if (pathParts.length < 2) {
+      throw new Error('Invalid GitHub repository path. Format: https://github.com/owner/repo');
+    }
+
+    const owner = pathParts[0];
+    const repo = pathParts[1].replace(/\.git$/i, '');
+
+    // Valid GitHub username & repo name slug check
+    const slugRegex = /^[a-zA-Z0-9._-]+$/;
+    if (!slugRegex.test(owner) || !slugRegex.test(repo)) {
+      throw new Error('GitHub owner or repository name contains invalid characters.');
+    }
+
+    // Block reserved system paths
+    const reserved = ['settings', 'explore', 'features', 'topics', 'trending', 'collections', 'events', 'sponsors', 'login', 'join'];
+    if (reserved.includes(owner.toLowerCase())) {
+      throw new Error(`"${owner}" is a reserved GitHub system path, not a user repository.`);
+    }
+
+    return {
+      owner,
+      repo,
+      cleanRepoName: repo,
+      canonicalUrl: `https://github.com/${owner}/${repo}`
+    };
+  }
+
+  /**
+   * Strict validation for uploaded document files
+   * @param {File|{ name: string, size: number, type?: string }} file
+   * @param {ArrayBuffer|Uint8Array} [rawBuffer]
+   * @returns {{ valid: boolean, sanitizedName: string, extension: string, size: number }}
+   */
+  static validateDocumentFile(file, rawBuffer = null) {
+    if (!file || typeof file !== 'object') {
+      throw new Error('No file provided for ingestion.');
+    }
+
+    const name = String(file.name || '').trim();
+    const size = Number(file.size);
+
+    if (!name) {
+      throw new Error('File name is missing or invalid.');
+    }
+
+    // Check size bounds (0 < size <= 10MB)
+    const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+    if (isNaN(size) || size <= 0) {
+      throw new Error('Cannot ingest empty (0 bytes) file.');
+    }
+    if (size > MAX_SIZE) {
+      throw new Error(`File is too large (${(size / (1024 * 1024)).toFixed(1)} MB). Maximum allowed size is 10 MB.`);
+    }
+
+    // Sanitize filename and extract extension
+    const extMatch = name.match(/\.([a-zA-Z0-9]+)$/);
+    if (!extMatch) {
+      throw new Error('File must have a valid extension (.pdf, .md, .txt, .docx).');
+    }
+    const ext = extMatch[1].toLowerCase();
+    const allowedExtensions = ['pdf', 'md', 'txt', 'docx', 'markdown'];
+    if (!allowedExtensions.includes(ext)) {
+      throw new Error(`Unsupported file type ".${ext}". Allowed: PDF, Markdown (.md), Plain Text (.txt), and Word (.docx).`);
+    }
+
+    // Optional magic-byte validation when buffer is supplied
+    if (rawBuffer) {
+      const bytes = new Uint8Array(rawBuffer instanceof ArrayBuffer ? rawBuffer : rawBuffer.buffer || rawBuffer);
+      if (ext === 'pdf') {
+        // PDF magic bytes: %PDF- (0x25 0x50 0x44 0x46)
+        if (bytes.length < 4 || bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46) {
+          throw new Error('Corrupted or invalid PDF file header.');
+        }
+      } else if (ext === 'docx') {
+        // DOCX is a ZIP container: PK\x03\x04 (0x50 0x4B 0x03 0x04)
+        if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4B || bytes[2] !== 0x03 || bytes[3] !== 0x04) {
+          throw new Error('Corrupted or invalid Word (.docx) file header.');
+        }
+      } else if (ext === 'txt' || ext === 'md' || ext === 'markdown') {
+        // Reject binary executable headers (MZ for DOS/PE, \x7fELF for Linux)
+        if (bytes.length >= 2 && bytes[0] === 0x4D && bytes[1] === 0x5A) {
+          throw new Error('Executable binary files are strictly prohibited.');
+        }
+        if (bytes.length >= 4 && bytes[0] === 0x7F && bytes[1] === 0x45 && bytes[2] === 0x4C && bytes[3] === 0x46) {
+          throw new Error('ELF binary files are strictly prohibited.');
+        }
+      }
+    }
+
+    const sanitizedName = name.replace(/[^a-zA-Z0-9._\-\s]/g, '_').slice(0, 150);
+
+    return {
+      valid: true,
+      sanitizedName,
+      extension: ext,
+      size
+    };
+  }
+
+  /**
+   * Strict validation and sanitization for Job Description (JD) text
+   * @param {any} text
+   * @returns {string} Cleaned, injection-neutralized JD string
+   */
+  static validateJobDescription(text) {
+    if (text === null || text === undefined) return '';
+    if (typeof text !== 'string') {
+      text = String(text);
+    }
+
+    let clean = text.trim();
+    if (!clean) return '';
+
+    // Hard length cap: 10,000 characters
+    if (clean.length > 10000) {
+      clean = clean.slice(0, 10000);
+    }
+
+    // Strip HTML and script tags
+    clean = clean.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    clean = clean.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+    clean = clean.replace(/<[^>]+>/g, ' ');
+
+    // Neutralize prompt injection phrases
+    clean = this.sanitizePromptQuestion(clean);
+
+    return clean.replace(/\s+/g, ' ').trim();
+  }
+
+  /**
+   * Validate generic profile URL
+   * @param {string} url
+   * @param {string} [expectedDomain]
+   * @returns {string} Safe canonical URL or empty string
+   */
+  static validateProfileUrl(url, expectedDomain = null) {
+    if (!url || typeof url !== 'string') return '';
+    const trimmed = url.trim();
+    if (!trimmed || trimmed.length > 500) return '';
+
+    // Strictly reject dangerous schemes
+    if (/^(javascript|data|vbscript|file):/i.test(trimmed)) {
+      return '';
+    }
+
+    try {
+      const parsed = new URL(trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return '';
+      }
+
+      if (expectedDomain) {
+        const host = parsed.hostname.toLowerCase();
+        if (!host.includes(expectedDomain.toLowerCase())) {
+          return '';
+        }
+      }
+
+      return parsed.href;
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * Validate and sanitize LLM provider configuration
+   * @param {any} config
+   * @returns {object} Safe LLM configuration
+   */
+  static validateLlmConfig(config) {
+    if (!config || typeof config !== 'object') {
+      return {
+        provider: 'ollama',
+        ollamaEndpoint: 'http://localhost:11434',
+        ollamaModel: 'llama3.2'
+      };
+    }
+
+    const clean = this.stripPrototypePollution(config);
+    const validProviders = ['ollama', 'gemini', 'openai', 'anthropic'];
+    const provider = validProviders.includes(clean.provider) ? clean.provider : 'ollama';
+
+    // Validate endpoint
+    let endpoint = String(clean.ollamaEndpoint || 'http://localhost:11434').trim();
+    try {
+      const parsed = new URL(endpoint);
+      const host = parsed.hostname.toLowerCase();
+      // Block cloud metadata SSRF addresses
+      if (host === '169.254.169.254' || host === 'metadata.google.internal' || host === 'instance-data') {
+        endpoint = 'http://localhost:11434';
+      }
+    } catch {
+      endpoint = 'http://localhost:11434';
+    }
+
+    const modelSlugRegex = /^[a-zA-Z0-9._:-]+$/;
+    const sanitizeModel = (m, def) => {
+      const s = String(m || '').trim();
+      return (s && modelSlugRegex.test(s)) ? s.slice(0, 80) : def;
+    };
+
+    return {
+      provider,
+      ollamaEndpoint: endpoint.slice(0, 150),
+      ollamaModel: sanitizeModel(clean.ollamaModel, 'llama3.2'),
+      geminiApiKey: clean.geminiApiKey ? String(clean.geminiApiKey).trim().slice(0, 120) : '',
+      geminiModel: sanitizeModel(clean.geminiModel, 'gemini-1.5-flash'),
+      openaiApiKey: clean.openaiApiKey ? String(clean.openaiApiKey).trim().slice(0, 120) : '',
+      openaiModel: sanitizeModel(clean.openaiModel, 'gpt-4o-mini'),
+      anthropicApiKey: clean.anthropicApiKey ? String(clean.anthropicApiKey).trim().slice(0, 120) : '',
+      anthropicModel: sanitizeModel(clean.anthropicModel, 'claude-3-5-haiku-20241022')
+    };
   }
 }

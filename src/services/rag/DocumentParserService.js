@@ -1,7 +1,4 @@
-/**
- * DocumentParserService - Parses Resume files, Text, Markdown, and GitHub READMEs
- * Follows Single Responsibility Principle (SRP).
- */
+import { SecurityGuardService } from '../security/SecurityGuardService.js';
 
 export class DocumentParserService {
   /**
@@ -14,21 +11,27 @@ export class DocumentParserService {
       .replace(/\r/g, '\n')
       .replace(/[ \t]+/g, ' ')
       .replace(/\n{3,}/g, '\n\n')
+      .slice(0, 500000)
       .trim();
   }
 
   /**
-   * Parse text from a local File object (.txt, .md, .pdf)
+   * Parse text from a local File object (.txt, .md, .pdf, .docx)
    */
   static async parseFile(file) {
-    if (!file) throw new Error('No file provided');
+    // 1. Strict metadata validation
+    const fileMeta = SecurityGuardService.validateDocumentFile(file);
+    const fileName = fileMeta.sanitizedName;
+    const extension = fileMeta.extension;
 
-    const fileName = file.name || 'document';
-    const extension = fileName.split('.').pop()?.toLowerCase();
+    // 2. Read buffer and perform magic-byte verification
+    const buffer = await file.arrayBuffer();
+    SecurityGuardService.validateDocumentFile(file, buffer);
 
     // Plain text / Markdown
-    if (extension === 'txt' || extension === 'md' || extension === 'markdown' || extension === 'json') {
-      const content = await file.text();
+    if (extension === 'txt' || extension === 'md' || extension === 'markdown') {
+      const decoder = new TextDecoder('utf-8', { fatal: false });
+      const content = decoder.decode(buffer);
       return {
         id: `doc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         title: fileName,
@@ -42,7 +45,6 @@ export class DocumentParserService {
 
     // PDF files: Extract readable text streams
     if (extension === 'pdf') {
-      const buffer = await file.arrayBuffer();
       const extractedText = await this.extractTextFromPdfArrayBuffer(buffer);
       return {
         id: `doc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -55,8 +57,9 @@ export class DocumentParserService {
       };
     }
 
-    // Fallback: read as text
-    const raw = await file.text();
+    // Fallback: decode text
+    const decoder = new TextDecoder('utf-8', { fatal: false });
+    const raw = decoder.decode(buffer);
     return {
       id: `doc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       title: fileName,
@@ -75,7 +78,6 @@ export class DocumentParserService {
     try {
       const uint8 = new Uint8Array(buffer);
       let text = '';
-      let inTextObject = false;
 
       // Scan for stream and text objects (BT ... ET) or plain string streams
       const decoder = new TextDecoder('utf-8', { fatal: false });
@@ -122,30 +124,22 @@ export class DocumentParserService {
    * Example input: https://github.com/alex-morgan-dev/ai-voice-agent-pipeline
    */
   static async fetchGitHubReadme(repoUrl) {
-    if (!repoUrl) throw new Error('Repository URL is required');
-
-    // Extract owner and repo
-    const match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/\#\?]+)/i);
-    if (!match) {
-      throw new Error('Invalid GitHub URL. Format: https://github.com/owner/repo');
-    }
-
-    const owner = match[1];
-    const repo = match[2].replace(/\.git$/i, '');
-    const cleanRepoName = repo;
+    // Strict URL & Host validation
+    const { owner, repo, cleanRepoName, canonicalUrl } = SecurityGuardService.validateGitHubUrl(repoUrl);
 
     const branches = ['HEAD', 'main', 'master'];
     let readmeText = '';
-    let fetchedUrl = '';
 
     for (const branch of branches) {
       const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/README.md`;
       try {
         const res = await fetch(rawUrl);
         if (res.ok) {
-          readmeText = await res.text();
-          fetchedUrl = rawUrl;
-          break;
+          const text = await res.text();
+          if (text && text.length > 0) {
+            readmeText = text.slice(0, 500000);
+            break;
+          }
         }
       } catch (e) {
         // Continue trying fallback branches
@@ -153,15 +147,17 @@ export class DocumentParserService {
     }
 
     if (!readmeText) {
-      // Try uppercase / lowercase variations
+      // Try lowercase variations
       for (const branch of ['main', 'master']) {
         const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/readme.md`;
         try {
           const res = await fetch(rawUrl);
           if (res.ok) {
-            readmeText = await res.text();
-            fetchedUrl = rawUrl;
-            break;
+            const text = await res.text();
+            if (text && text.length > 0) {
+              readmeText = text.slice(0, 500000);
+              break;
+            }
           }
         } catch {}
       }
@@ -176,7 +172,7 @@ export class DocumentParserService {
       title: `${cleanRepoName} (GitHub README)`,
       type: 'github_readme',
       source: 'github',
-      repoUrl: `https://github.com/${owner}/${repo}`,
+      repoUrl: canonicalUrl,
       owner: owner,
       repo: repo,
       content: this.cleanText(readmeText),
