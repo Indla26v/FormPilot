@@ -911,7 +911,9 @@ function initActionHandlers() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `GFAF_Safe_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+        const profilePrefix = (currentProfile?.name || 'Profile').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+        const dateStr = new Date().toISOString().slice(0, 10);
+        a.download = `${profilePrefix}_FormPilot_Backup_${dateStr}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -939,7 +941,9 @@ function initActionHandlers() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `GFAF_Encrypted_Backup_${new Date().toISOString().slice(0, 10)}.gfaf.enc`;
+        const profilePrefix = (currentProfile?.name || 'Profile').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+        const dateStr = new Date().toISOString().slice(0, 10);
+        a.download = `${profilePrefix}_FormPilot_Encrypted_${dateStr}.gfaf.enc`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
