@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GFAF - Candidate Profile & Form Filler Settings</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-badge" id="brand-badge-icon"></div>
+        <div class="brand-text">
+          <h1 class="app-title">GFAF</h1>
+          <span class="app-sub">Profile Manager</span>
+        </div>
+      </div>
+
+      <!-- Profile Selector Card in Sidebar -->
+      <div class="sidebar-profile-box">
+        <div class="sidebar-profile-header">
+          <label class="sidebar-label" for="active-profile-select">Active Profile</label>
+          <button type="button" class="sidebar-edit-link" id="btn-rename-profile" title="Rename this profile">
+            <span class="btn-icon" id="icon-rename-profile"></span>
+            <span>Edit</span>
+          </button>
+        </div>
+        <select class="pill-select" id="active-profile-select"></select>
+        <div class="profile-actions-row">
+          <button type="button" class="pill-btn-small pill-btn-ghost flex-1" id="btn-duplicate-profile" title="Duplicate this profile">
+            <span class="btn-icon" id="icon-duplicate"></span>
+            <span>Clone</span>
+          </button>
+          <button type="button" class="pill-btn-small pill-btn-ghost flex-1" id="btn-new-profile" title="Create a new profile">
+            <span class="btn-icon" id="icon-new-profile"></span>
+            <span>New</span>
+          </button>
+          <button type="button" class="pill-btn-small pill-btn-danger-ghost" id="btn-delete-profile" title="Delete this profile">
+            <span class="btn-icon" id="icon-delete-profile"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="nav-menu">
+        <button type="button" class="nav-item active" data-tab="tab-personal">
+          <span class="nav-icon" id="nav-icon-personal"></span>
+          <span>Personal Details</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="tab-education">
+          <span class="nav-icon" id="nav-icon-education"></span>
+          <span>Education & Marks</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="tab-experience">
+          <span class="nav-icon" id="nav-icon-experience"></span>
+          <span>Experience & CTC</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="tab-links">
+          <span class="nav-icon" id="nav-icon-links"></span>
+          <span>Links & Portfolio</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="tab-skills">
+          <span class="nav-icon" id="nav-icon-skills"></span>
+          <span>Skills & Tech Stack</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="tab-rag">
+          <span class="nav-icon" id="nav-icon-rag"></span>
+          <span>Knowledge Base (RAG)</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="tab-llm">
+          <span class="nav-icon" id="nav-icon-llm"></span>
+          <span>AI & Local LLM Setup</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="tab-smartqa">
+          <span class="nav-icon" id="nav-icon-smartqa"></span>
+          <span>Smart Q&A Answers</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="tab-custom">
+          <span class="nav-icon" id="nav-icon-custom"></span>
+          <span>Custom Fields</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="tab-settings">
+          <span class="nav-icon" id="nav-icon-settings"></span>
+          <span>Settings & Backup</span>
+        </button>
+      </nav>
+
+      <!-- Sidebar Footer -->
+      <div class="sidebar-footer">
+        <span class="version-tag">Version 1.0.1</span>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Top Action Bar -->
+      <header class="top-bar">
+        <div class="top-bar-left">
+          <h2 class="page-title" id="tab-title">Personal Details</h2>
+          <p class="page-desc" id="tab-desc">Configure your candidate identity and contact information.</p>
+        </div>
+        <div class="top-bar-right">
+          <button type="button" class="pill-btn pill-btn-primary" id="btn-save-all">
+            <span class="btn-icon" id="icon-save"></span>
+            <span>Save Profile</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Form Container -->
+      <form id="profile-form" class="content-scroll">
+        <!-- 1. Personal Details Tab -->
+        <section class="tab-pane active" id="tab-personal">
+          <div class="section-card">
+            <h3 class="section-title">Identity & Name</h3>
+            <div class="form-grid">
+              <div class="form-group full-width">
+                <label class="form-label" for="field-profileName">Profile Name / Title</label>
+                <input type="text" id="field-profileName" class="form-input" placeholder="e.g. AI / ML Engineer, Java Backend SDE, Full Stack Dev" />
+                <span class="form-hint">Display name for this profile in the dropdown and extension widget.</span>
+              </div>
+              <div class="form-group full-width">
+                <label class="form-label" for="field-fullName">Full Name / Candidate Name</label>
+                <input type="text" id="field-fullName" class="form-input" placeholder="e.g. Alex Morgan" />
+                <span class="form-hint">Matches: Name, Full Name, Candidate Name, Applicant Name</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-firstName">First Name</label>
+                <input type="text" id="field-firstName" class="form-input" placeholder="e.g. Alex" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-lastName">Last Name</label>
+                <input type="text" id="field-lastName" class="form-input" placeholder="e.g. Morgan" />
+              </div>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <h3 class="section-title">Contact & Location</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label" for="field-email">Email Address</label>
+                <input type="email" id="field-email" class="form-input" placeholder="e.g. alex.morgan.dev@example.com" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-phone">Phone Number (Formatted)</label>
+                <input type="tel" id="field-phone" class="form-input" placeholder="e.g. +1 555-019-2834" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-phoneDigits">Phone (Digits Only for numeric inputs)</label>
+                <input type="text" id="field-phoneDigits" class="form-input" placeholder="e.g. 5550192834" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-currentLocation">Current Location / Based Out Of</label>
+                <input type="text" id="field-currentLocation" class="form-input" placeholder="e.g. San Francisco, CA" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-city">City</label>
+                <input type="text" id="field-city" class="form-input" placeholder="e.g. San Francisco" />
+              </div>
+              <div class="form-group full-width">
+                <label class="form-label" for="field-address">Complete Address</label>
+                <input type="text" id="field-address" class="form-input" placeholder="e.g. 742 Evergreen Terrace, San Francisco, CA 94107" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. Education Tab -->
+        <section class="tab-pane" id="tab-education">
+          <div class="section-card">
+            <h3 class="section-title">College & Academic Status</h3>
+            <div class="form-grid">
+              <div class="form-group full-width">
+                <label class="form-label" for="field-collegeName">College / University / Institute Name</label>
+                <input type="text" id="field-collegeName" class="form-input" placeholder="e.g. University of Technology" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-degree">Degree & Branch</label>
+                <input type="text" id="field-degree" class="form-input" placeholder="e.g. B.S. in Computer Science & Engineering" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-graduationYear">Graduation Year</label>
+                <input type="text" id="field-graduationYear" class="form-input" placeholder="e.g. 2025" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-graduationStatus">Graduation Status (Radio Choice)</label>
+                <input type="text" id="field-graduationStatus" class="form-input" placeholder="e.g. I am in my last year" />
+                <span class="form-hint">Matches options like "I am in my last year", "1 year back"</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-workingStatus">Working Status (Radio Choice)</label>
+                <input type="text" id="field-workingStatus" class="form-input" placeholder="e.g. Student" />
+                <span class="form-hint">Matches: Student, In between Jobs, Working</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <h3 class="section-title">Grades & Percentage (Text & Numeric)</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label" for="field-tenthPercentage">10th Percentage (Text: e.g. 92.5%)</label>
+                <input type="text" id="field-tenthPercentage" class="form-input" placeholder="e.g. 92.5%" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-tenthPercentageNumeric">10th (Numeric only)</label>
+                <input type="text" id="field-tenthPercentageNumeric" class="form-input" placeholder="e.g. 92.5" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-twelfthPercentage">12th Percentage (Text: e.g. 94.0%)</label>
+                <input type="text" id="field-twelfthPercentage" class="form-input" placeholder="e.g. 94.0%" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-twelfthPercentageNumeric">12th (Numeric only)</label>
+                <input type="text" id="field-twelfthPercentageNumeric" class="form-input" placeholder="e.g. 94.0" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-graduationCgpa">Graduation CGPA (Text: e.g. 8.8 / 10)</label>
+                <input type="text" id="field-graduationCgpa" class="form-input" placeholder="e.g. 8.8 / 10" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-graduationCgpaNumeric">Graduation CGPA (Numeric only)</label>
+                <input type="text" id="field-graduationCgpaNumeric" class="form-input" placeholder="e.g. 8.8" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-collegeAttendanceRequirement">College Attendance Requirement</label>
+                <input type="text" id="field-collegeAttendanceRequirement" class="form-input" placeholder="e.g. No" />
+              </div>
+              <div class="form-group full-width">
+                <label class="form-label" for="field-vivasExamsUpcoming">Upcoming VIVAs / Exams / End-sems in next 3 months</label>
+                <input type="text" id="field-vivasExamsUpcoming" class="form-input" placeholder="e.g. No" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. Experience & CTC Tab -->
+        <section class="tab-pane" id="tab-experience">
+          <div class="section-card">
+            <h3 class="section-title">Professional Role & Availability</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label" for="field-currentOrganization">Current Organization / Employer</label>
+                <input type="text" id="field-currentOrganization" class="form-input" placeholder="e.g. Acme Labs / Open Source Builder" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-currentRole">Current Role / Applied Role</label>
+                <input type="text" id="field-currentRole" class="form-input" placeholder="e.g. AI & Full Stack Engineer" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-totalExperienceYears">Total Experience (Years)</label>
+                <input type="text" id="field-totalExperienceYears" class="form-input" placeholder="e.g. 1" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-noticePeriod">Notice Period (Text)</label>
+                <input type="text" id="field-noticePeriod" class="form-input" placeholder="e.g. Immediate" />
+                <span class="form-hint">Used for text fields (e.g. "Immediate")</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-noticePeriodDays">Notice Period in Days (Numbers)</label>
+                <input type="text" id="field-noticePeriodDays" class="form-input" placeholder="e.g. 0" />
+                <span class="form-hint">Used for "Notice period (In days)" (e.g. 0, 15, 30)</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-canJoinImmediately">Can Join Immediately?</label>
+                <input type="text" id="field-canJoinImmediately" class="form-input" placeholder="e.g. Yes" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-hoursCommitmentConfirmed">Can Commit 8 Hours Daily (Mon-Sat)?</label>
+                <input type="text" id="field-hoursCommitmentConfirmed" class="form-input" placeholder="e.g. Yes" />
+              </div>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <h3 class="section-title">Compensation (Text & Numeric Formats)</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label" for="field-expectedCtc">Expected CTC (Text: e.g. 7 - 12 LPA)</label>
+                <input type="text" id="field-expectedCtc" class="form-input" placeholder="e.g. 7 - 12 LPA" />
+                <span class="form-hint">Used for text questions e.g. "Expected CTC", "Salary expectations"</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-expectedCtcNumeric">Expected CTC (Numeric: e.g. 700000)</label>
+                <input type="text" id="field-expectedCtcNumeric" class="form-input" placeholder="e.g. 700000" />
+                <span class="form-hint">Auto-used for numeric fields or "Must be a number"</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-currentCtc">Current CTC (Text: e.g. Not Applicable)</label>
+                <input type="text" id="field-currentCtc" class="form-input" placeholder="e.g. Not Applicable" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-currentCtcNumeric">Current CTC (Numeric: e.g. 0)</label>
+                <input type="text" id="field-currentCtcNumeric" class="form-input" placeholder="e.g. 0" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-stipendExpectation">Stipend Expectation (Text: e.g. Rs. 40,000 - 60,000 / month)</label>
+                <input type="text" id="field-stipendExpectation" class="form-input" placeholder="e.g. Rs. 40,000 - 60,000 / month" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-stipendExpectationNumeric">Stipend (Numeric: e.g. 50000)</label>
+                <input type="text" id="field-stipendExpectationNumeric" class="form-input" placeholder="e.g. 50000" />
+              </div>
+              <div class="form-group full-width">
+                <label class="form-label" for="field-deployedInProduction">Deployed Something in Production?</label>
+                <input type="text" id="field-deployedInProduction" class="form-input" placeholder="e.g. Yes, and I maintained it after" />
+              </div>
+              <div class="form-group full-width">
+                <label class="form-label" for="field-writtenLlmPipelines">Written LLM Code in Loop or Pipeline?</label>
+                <input type="text" id="field-writtenLlmPipelines" class="form-input" placeholder="e.g. Yes" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. Links & Socials Tab -->
+        <section class="tab-pane" id="tab-links">
+          <div class="section-card">
+            <h3 class="section-title">Profile & Code Links</h3>
+            <div class="form-grid">
+              <div class="form-group full-width">
+                <label class="form-label" for="field-linkedinUrl">LinkedIn URL</label>
+                <input type="url" id="field-linkedinUrl" class="form-input" placeholder="https://www.linkedin.com/in/alex-morgan-dev" />
+              </div>
+              <div class="form-group full-width">
+                <label class="form-label" for="field-githubUrl">GitHub URL</label>
+                <input type="url" id="field-githubUrl" class="form-input" placeholder="https://github.com/alex-morgan-dev" />
+              </div>
+              <div class="form-group full-width">
+                <label class="form-label" for="field-portfolioUrl">Portfolio / Website / Projects URL</label>
+                <input type="url" id="field-portfolioUrl" class="form-input" placeholder="https://alexmorgan.dev" />
+              </div>
+              <div class="form-group full-width">
+                <label class="form-label" for="field-projectDemoUrl">Best Live Project / Demo / File Link</label>
+                <input type="url" id="field-projectDemoUrl" class="form-input" placeholder="https://github.com/alex-morgan-dev/ai-voice-agent-pipeline" />
+                <span class="form-hint">Matches: "Link to one thing you built that a stranger can open and use"</span>
+              </div>
+              <div class="form-group full-width">
+                <label class="form-label" for="field-resumeUrl">Resume Link (Google Drive / Cloud URL)</label>
+                <input type="url" id="field-resumeUrl" class="form-input" placeholder="https://drive.google.com/file/d/1a2b3c4d5e-sample-resume/view" />
+                <span class="form-hint">Auto-fills forms with text input for resume links</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 5. Skills & Tech Stack Tab -->
+        <section class="tab-pane" id="tab-skills">
+          <div class="section-card">
+            <div class="card-header-flex">
+              <div>
+                <h3 class="section-title">Skills & Multi-Select Tech Stacks</h3>
+                <p class="section-sub">These skills will be automatically matched and checked in checkbox groups and tools questions.</p>
+              </div>
+            </div>
+
+            <div class="skills-input-row">
+              <input type="text" id="input-new-skill" class="form-input flex-1" placeholder="Skill / Tech tool (e.g. Java, Spring Boot, React, Docker)..." />
+              <input type="text" id="input-skill-years" class="form-input skill-input-sm" placeholder="Exp (e.g. 2 yrs)" />
+              <input type="number" id="input-skill-rating" class="form-input skill-rating-sm" min="1" max="10" placeholder="Scale (1-10)" value="8" title="Proficiency Scale from 1 to 10" />
+              
+              <!-- Custom Glassmorphic Dropdown for Skill Level -->
+              <div class="custom-select-wrapper" id="wrapper-skill-level">
+                <button type="button" class="custom-select-trigger" id="trigger-skill-level" aria-haspopup="listbox" aria-expanded="false">
+                  <span class="custom-select-text" id="text-skill-level">Advanced</span>
+                  <svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <div class="custom-select-dropdown" id="dropdown-skill-level" role="listbox">
+                  <div class="custom-select-option" data-value="Expert" data-default-rating="10" role="option">
+                    <span class="option-badge level-expert">Expert</span>
+                  </div>
+                  <div class="custom-select-option selected" data-value="Advanced" data-default-rating="8" role="option">
+                    <span class="option-badge level-advanced">Advanced</span>
+                  </div>
+                  <div class="custom-select-option" data-value="Intermediate" data-default-rating="6" role="option">
+                    <span class="option-badge level-intermediate">Intermediate</span>
+                  </div>
+                  <div class="custom-select-option" data-value="Beginner" data-default-rating="3" role="option">
+                    <span class="option-badge level-beginner">Beginner</span>
+                  </div>
+                </div>
+                <input type="hidden" id="select-skill-level" value="Advanced" />
+              </div>
+
+              <button type="button" class="pill-btn pill-btn-primary" id="btn-add-skill">
+                <span class="btn-icon" id="icon-add-skill"></span>
+                <span>Add Skill</span>
+              </button>
+            </div>
+
+            <div class="skill-tags-container" id="skill-tags-container"></div>
+          </div>
+        </section>
+
+        <!-- 6. Knowledge Base & RAG Tab -->
+        <section class="tab-pane" id="tab-rag">
+          <div class="section-card">
+            <h3 class="section-title">Upload Resume & Career Documents</h3>
+            <p class="section-sub">Upload your resume (.pdf, .docx, .md, .txt) to automatically chunk and index your work experience, education history, and key achievements.</p>
+            
+            <div class="rag-dropzone" id="rag-dropzone">
+              <div class="dropzone-icon" id="icon-dropzone-upload"></div>
+              <div class="dropzone-text">
+                <span class="dropzone-title">Click to browse or drag & drop your Resume</span>
+                <span class="dropzone-sub">Supports PDF, Markdown (.md), Plain Text (.txt), and Word Docs</span>
+              </div>
+              <input type="file" id="input-resume-file" accept=".pdf,.md,.txt,.docx,.markdown" style="display: none;" />
+            </div>
+          </div>
+
+          <div class="section-card">
+            <h3 class="section-title">Ingest GitHub Repository README</h3>
+            <p class="section-sub">Pull architecture diagrams, system design details, and tech stack writeups directly from your public GitHub repository READMEs.</p>
+            
+            <div class="github-ingest-row">
+              <input type="url" id="input-github-url" class="form-input" placeholder="e.g. https://github.com/alex-morgan-dev/ai-voice-agent-pipeline" />
+              <button type="button" class="pill-btn pill-btn-primary" id="btn-fetch-github">
+                <span class="btn-icon" id="icon-github-fetch"></span>
+                <span>Fetch & Ingest README</span>
+              </button>
+            </div>
+            <div id="github-ingest-status" class="status-banner hidden"></div>
+          </div>
+
+          <div class="section-card">
+            <div class="card-header-flex">
+              <div>
+                <h3 class="section-title">Ingested Knowledge Base Documents</h3>
+                <p class="section-sub">These documents are chunked and queried in real-time to answer complex form questions with factual accuracy.</p>
+              </div>
+              <button type="button" class="pill-btn pill-btn-danger-ghost" id="btn-clear-knowledge-base">
+                <span class="btn-icon" id="icon-clear-kb"></span>
+                <span>Clear All Docs</span>
+              </button>
+            </div>
+
+            <div class="docs-list-container" id="docs-list-container">
+              <div class="empty-state">No documents ingested yet. Upload a resume or add a GitHub repo above.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 7. AI & Local LLM Setup Tab -->
+        <section class="tab-pane" id="tab-llm">
+          <div class="section-card">
+            <h3 class="section-title">AI Provider Configuration</h3>
+            <p class="section-sub">Choose whether to run completely offline with local Ollama or connect via cloud API keys.</p>
+
+            <div class="provider-cards-grid">
+              <label class="provider-radio-card active" for="provider-radio-ollama" data-provider="ollama">
+                <input type="radio" id="provider-radio-ollama" name="llmProvider" value="ollama" checked style="display:none;" />
+                <div class="provider-card-header">
+                  <span class="provider-name">Ollama (Local Offline)</span>
+                  <span class="provider-badge badge-free">100% Free & Private</span>
+                </div>
+                <p class="provider-desc">Runs locally on your computer with zero API costs, no rate limits, and 100% privacy.</p>
+              </label>
+
+              <label class="provider-radio-card" for="provider-radio-gemini" data-provider="gemini">
+                <input type="radio" id="provider-radio-gemini" name="llmProvider" value="gemini" style="display:none;" />
+                <div class="provider-card-header">
+                  <span class="provider-name">Google Gemini</span>
+                  <span class="provider-badge badge-cloud">Cloud API</span>
+                </div>
+                <p class="provider-desc">Ultra-fast generation using gemini-1.5-flash with high token capacity.</p>
+              </label>
+
+              <label class="provider-radio-card" for="provider-radio-openai" data-provider="openai">
+                <input type="radio" id="provider-radio-openai" name="llmProvider" value="openai" style="display:none;" />
+                <div class="provider-card-header">
+                  <span class="provider-name">OpenAI</span>
+                  <span class="provider-badge badge-cloud">Cloud API</span>
+                </div>
+                <p class="provider-desc">Industry-standard GPT-4o-mini with high quality synthesis.</p>
+              </label>
+
+              <label class="provider-radio-card" for="provider-radio-anthropic" data-provider="anthropic">
+                <input type="radio" id="provider-radio-anthropic" name="llmProvider" value="anthropic" style="display:none;" />
+                <div class="provider-card-header">
+                  <span class="provider-name">Anthropic Claude</span>
+                  <span class="provider-badge badge-cloud">Cloud API</span>
+                </div>
+                <p class="provider-desc">Claude 3.5 Haiku with human-like nuance and concise technical phrasing.</p>
+              </label>
+            </div>
+          </div>
+
+          <!-- Dynamic Provider Settings Card -->
+          <div class="section-card" id="provider-settings-card">
+            <h3 class="section-title" id="provider-settings-title">Ollama Settings</h3>
+            
+            <!-- Ollama Fields -->
+            <div class="provider-fields-group" id="fields-ollama">
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label class="form-label" for="llm-ollamaEndpoint">Ollama Endpoint URL</label>
+                  <input type="url" id="llm-ollamaEndpoint" class="form-input" value="http://localhost:11434" />
+                  <span class="form-hint">Default local address for Ollama instance.</span>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="llm-ollamaModel">Local Model</label>
+                  <div class="input-with-action">
+                    <!-- Custom Glassmorphic Dropdown for Detected Ollama Models -->
+                    <div class="custom-select-wrapper flex-1" id="wrapper-ollama-model">
+                      <button type="button" class="custom-select-trigger" id="trigger-ollama-model" aria-haspopup="listbox" aria-expanded="false">
+                        <div class="custom-select-model-info">
+                          <span class="custom-select-dot dot-detected"></span>
+                          <span class="custom-select-text" id="text-ollama-model">llama3.2</span>
+                        </div>
+                        <svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                      </button>
+                      <div class="custom-select-dropdown model-dropdown-list" id="dropdown-ollama-model" role="listbox">
+                        <div class="custom-select-empty-state">Click "Detect Models" to scan local Ollama models</div>
+                      </div>
+                      <input type="hidden" id="llm-ollamaModel" value="llama3.2" />
+                    </div>
+
+                    <button type="button" class="pill-btn pill-btn-secondary" id="btn-detect-ollama" title="Scan installed Ollama models">
+                      <span class="btn-icon" id="icon-detect-models"></span>
+                      <span>Detect Models</span>
+                    </button>
+                  </div>
+                  <span class="form-hint">Only displays models detected and installed on your local machine.</span>
+                </div>
+              </div>
+
+              <div class="callout-info">
+                <div class="callout-title">Windows Ollama Quick Setup Tip:</div>
+                <p class="callout-text">To allow Chrome extensions to access Ollama, ensure your Windows environment variable <code>OLLAMA_ORIGINS</code> is set to <code>*</code>, then restart Ollama.</p>
+              </div>
+            </div>
+
+            <!-- Gemini Fields -->
+            <div class="provider-fields-group hidden" id="fields-gemini">
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label class="form-label" for="llm-geminiApiKey">Gemini API Key</label>
+                  <input type="password" id="llm-geminiApiKey" class="form-input" placeholder="AIzaSy..." />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="llm-geminiModel">Model Name</label>
+                  <select id="llm-geminiModel" class="form-select">
+                    <option value="gemini-1.5-flash" selected>gemini-1.5-flash (Fast & Economical)</option>
+                    <option value="gemini-1.5-pro">gemini-1.5-pro (High Reasoning)</option>
+                    <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- OpenAI Fields -->
+            <div class="provider-fields-group hidden" id="fields-openai">
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label class="form-label" for="llm-openaiApiKey">OpenAI API Key</label>
+                  <input type="password" id="llm-openaiApiKey" class="form-input" placeholder="sk-proj-..." />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="llm-openaiModel">Model Name</label>
+                  <select id="llm-openaiModel" class="form-select">
+                    <option value="gpt-4o-mini" selected>gpt-4o-mini (Fast & Intelligent)</option>
+                    <option value="gpt-4o">gpt-4o (State of the Art)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Anthropic Fields -->
+            <div class="provider-fields-group hidden" id="fields-anthropic">
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label class="form-label" for="llm-anthropicApiKey">Anthropic API Key</label>
+                  <input type="password" id="llm-anthropicApiKey" class="form-input" placeholder="sk-ant-..." />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="llm-anthropicModel">Model Name</label>
+                  <select id="llm-anthropicModel" class="form-select">
+                    <option value="claude-3-5-haiku-20241022" selected>claude-3-5-haiku (Lightning Fast)</option>
+                    <option value="claude-3-5-sonnet-20241022">claude-3-5-sonnet (Deep Writing)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Test Connection & Save Action -->
+            <div class="test-connection-row">
+              <button type="button" class="pill-btn pill-btn-primary" id="btn-test-llm">
+                <span class="btn-icon" id="icon-test-llm"></span>
+                <span>Test Connection</span>
+              </button>
+              <button type="button" class="pill-btn pill-btn-secondary" id="btn-save-llm">
+                <span class="btn-icon" id="icon-save-llm"></span>
+                <span>Save AI Configuration</span>
+              </button>
+            </div>
+            <div id="llm-test-status" class="status-banner hidden"></div>
+          </div>
+        </section>
+
+        <!-- 8. Smart Q&A Tab -->
+        <section class="tab-pane" id="tab-smartqa">
+          <div class="section-card">
+            <div class="card-header-flex">
+              <div>
+                <h3 class="section-title">Custom Question & Answer Database</h3>
+                <p class="section-sub">Pre-set answers for in-depth engineering and interview questions. The matcher uses fuzzy semantic search on keywords.</p>
+              </div>
+              <button type="button" class="pill-btn pill-btn-secondary" id="btn-add-qa">
+                <span class="btn-icon" id="icon-add-qa"></span>
+                <span>Add New Q&A</span>
+              </button>
+            </div>
+
+            <div class="qa-list-container" id="qa-list-container"></div>
+          </div>
+        </section>
+
+        <!-- 7. Custom Fields Tab -->
+        <section class="tab-pane" id="tab-custom">
+          <div class="section-card">
+            <div class="card-header-flex">
+              <div>
+                <h3 class="section-title">Custom Key-Value Form Fields</h3>
+                <p class="section-sub">Define any arbitrary question label and its exact auto-fill answer.</p>
+              </div>
+              <button type="button" class="pill-btn pill-btn-secondary" id="btn-add-custom-field">
+                <span class="btn-icon" id="icon-add-custom"></span>
+                <span>Add Custom Field</span>
+              </button>
+            </div>
+
+            <div class="custom-fields-list" id="custom-fields-container"></div>
+          </div>
+        </section>
+
+        <!-- 8. Settings & Backup Tab -->
+        <section class="tab-pane" id="tab-settings">
+          <div class="section-card">
+            <h3 class="section-title">Extension Behavior</h3>
+            <div class="settings-list">
+              <label class="setting-toggle-row" for="setting-autoHighlight">
+                <div class="setting-info">
+                  <span class="setting-title">Auto-Highlight Filled Fields</span>
+                  <span class="setting-desc">Highlights fields on Google Forms with an accent border and confidence badge.</span>
+                </div>
+                <input type="checkbox" id="setting-autoHighlight" class="toggle-checkbox" checked />
+              </label>
+
+              <label class="setting-toggle-row" for="setting-showFloatingWidget">
+                <div class="setting-info">
+                  <span class="setting-title">Show In-Page Floating Pill Widget</span>
+                  <span class="setting-desc">Display the sleek floating pill button directly on Google Forms pages for 1-click filling.</span>
+                </div>
+                <input type="checkbox" id="setting-showFloatingWidget" class="toggle-checkbox" checked />
+              </label>
+
+              <label class="setting-toggle-row" for="setting-autoFillRadioCheckboxes">
+                <div class="setting-info">
+                  <span class="setting-title">Auto-Select Radio & Checkbox Choices</span>
+                  <span class="setting-desc">Automatically identify and select single-choice and multi-choice checkboxes matching your profile.</span>
+                </div>
+                <input type="checkbox" id="setting-autoFillRadioCheckboxes" class="toggle-checkbox" checked />
+              </label>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <h3 class="section-title">Backup & Restore</h3>
+            <p class="section-sub">Export your entire profiles database as a JSON file or import a backup.</p>
+            <div class="backup-actions-row">
+              <button type="button" class="pill-btn pill-btn-secondary" id="btn-export-backup">
+                <span class="btn-icon" id="icon-export"></span>
+                <span>Export JSON Backup</span>
+              </button>
+              <label class="pill-btn pill-btn-secondary file-upload-btn" for="input-import-file">
+                <span class="btn-icon" id="icon-import"></span>
+                <span>Import JSON Backup</span>
+                <input type="file" id="input-import-file" accept=".json" style="display: none;" />
+              </label>
+            </div>
+          </div>
+        </section>
+      </form>
+    </main>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast hidden" id="global-toast">
+    <span class="toast-icon" id="global-toast-icon"></span>
+    <span class="toast-msg" id="global-toast-msg">Settings saved successfully</span>
+  </div>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>

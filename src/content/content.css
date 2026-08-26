@@ -1,0 +1,475 @@
+/**
+ * Google Forms Auto-Filler Content Script Styling
+ * Strictly follows: Clean UI, modern design, rounded corners, pill-shaped buttons, NO emojis.
+ */
+
+/* Filled field highlight styling */
+.gfaf-filled-highlight {
+  border-left: 4px solid #6366f1 !important;
+  background: rgba(99, 102, 241, 0.02) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 8px !important;
+}
+
+.gfaf-match-badge {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: #10b981;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+  pointer-events: none;
+  z-index: 10;
+  animation: gfafFadeIn 0.3s ease-out;
+}
+
+@keyframes gfafFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Floating Assistant Widget */
+#gfaf-floating-root {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 999999;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.gfaf-widget-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 8px;
+  border-radius: 18px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  color: #f3f4f6;
+  width: 132px; /* Compact horizontal size */
+  box-sizing: border-box;
+  position: relative;
+}
+
+.gfaf-widget-card:hover {
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(99, 102, 241, 0.25);
+}
+
+/* Custom UI Dropdown */
+.gfaf-custom-dropdown {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.gfaf-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #f8fafc;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 9999px; /* Pill shape */
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.gfaf-dropdown-trigger:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(99, 102, 241, 0.6);
+}
+
+.gfaf-dropdown-trigger.open {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.gfaf-dropdown-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  flex: 1;
+  margin-right: 4px;
+}
+
+.gfaf-dropdown-chevron {
+  display: flex;
+  align-items: center;
+  color: #94a3b8;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.gfaf-dropdown-chevron svg {
+  width: 11px;
+  height: 11px;
+}
+
+.gfaf-dropdown-trigger.open .gfaf-dropdown-chevron {
+  transform: rotate(180deg);
+}
+
+.gfaf-dropdown-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  min-width: 145px;
+  max-width: 180px;
+  background: rgba(15, 23, 42, 0.98);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  border-radius: 12px;
+  padding: 4px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5), 0 0 14px rgba(99, 102, 241, 0.25);
+  z-index: 1000001;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: gfafMenuPop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+.gfaf-dropdown-menu.hidden {
+  display: none !important;
+}
+
+@keyframes gfafMenuPop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.gfaf-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.gfaf-dropdown-item:hover {
+  background: rgba(99, 102, 241, 0.22);
+  color: #ffffff;
+}
+
+.gfaf-dropdown-item.active {
+  background: rgba(99, 102, 241, 0.28);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.gfaf-item-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.gfaf-dropdown-item.active .gfaf-item-dot {
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+
+.gfaf-item-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Primary Pill Button */
+.gfaf-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 9999px; /* Pill shape */
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+  user-select: none;
+  white-space: nowrap;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.gfaf-pill-btn-primary {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+}
+
+.gfaf-pill-btn-primary:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.45);
+  transform: translateY(-1px);
+}
+
+.gfaf-pill-btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Status Toast Notification */
+.gfaf-toast {
+  position: fixed;
+  bottom: 96px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 10px 18px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  z-index: 1000000;
+  animation: gfafSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gfaf-toast-success {
+  border-left: 4px solid #10b981;
+}
+
+.gfaf-toast-icon {
+  display: flex;
+  align-items: center;
+  color: #10b981;
+}
+
+@keyframes gfafSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ----------------------------------------------------
+   AI Inline Toolbar with Comment Column & Re-generate
+---------------------------------------------------- */
+.gfaf-ai-toolbar {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #0f172a;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 9999px;
+  padding: 6px 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  animation: gfafFadeIn 0.3s ease-out;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.gfaf-ai-toolbar-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(99, 102, 241, 0.18);
+  color: #a5b4fc;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.gfaf-ai-toolbar-badge svg {
+  width: 13px;
+  height: 13px;
+}
+
+.gfaf-ai-comment-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  color: #f8fafc;
+  font-size: 12px;
+  padding: 6px 14px;
+  outline: none;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  min-width: 140px;
+}
+
+.gfaf-ai-comment-input:focus {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+}
+
+.gfaf-ai-comment-input::placeholder {
+  color: #94a3b8;
+  font-size: 11.5px;
+}
+
+.gfaf-ai-regen-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 9999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+}
+
+.gfaf-ai-regen-btn:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.45);
+}
+
+.gfaf-ai-regen-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.gfaf-ai-regen-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.gfaf-spin {
+  animation: gfafRotate 1s linear infinite;
+}
+
+@keyframes gfafRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ----------------------------------------------------
+   Per-Column Small AI Action Button (Pill shaped, modern)
+---------------------------------------------------- */
+.gfaf-ai-column-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 6px;
+  margin-bottom: 4px;
+  padding: 2px 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.gfaf-ai-column-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(99, 102, 241, 0.08);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 9999px; /* Pill shape */
+  padding: 4px 12px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 4px rgba(99, 102, 241, 0.08);
+  user-select: none;
+}
+
+.gfaf-ai-column-btn:hover {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+  transform: translateY(-1px);
+}
+
+.gfaf-ai-column-btn:active {
+  transform: translateY(0);
+}
+
+.gfaf-ai-column-btn.loading {
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+  border-color: rgba(99, 102, 241, 0.4);
+  cursor: wait;
+  transform: none;
+  box-shadow: none;
+}
+
+.gfaf-ai-column-btn.active {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.gfaf-ai-column-btn.active:hover {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+}
+
+.gfaf-ai-column-btn svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+

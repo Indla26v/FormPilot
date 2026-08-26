@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GFAF - Google Forms Auto Filler</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="brand">
+        <div class="brand-logo" id="brand-logo-icon"></div>
+        <div class="brand-info">
+          <h1 class="brand-title">GFAF</h1>
+          <span class="brand-tagline">Forms Auto-Filler</span>
+        </div>
+      </div>
+      <div class="status-badge status-ready" id="status-badge">
+        <span class="status-dot"></span>
+        <span class="status-text" id="status-text">Active</span>
+      </div>
+    </header>
+
+    <!-- Main Action Hero -->
+    <div class="action-hero">
+      <button class="pill-btn-hero" id="btn-autofill">
+        <span class="btn-icon" id="hero-sparkle-icon"></span>
+        <span class="btn-label">Auto-Fill Form</span>
+      </button>
+      <div class="shortcut-hint">
+        <span>Shortcut: </span><kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd>
+      </div>
+    </div>
+
+    <!-- Active Profile Card -->
+    <div class="profile-card">
+      <div class="card-header">
+        <span class="card-label">Active Profile</span>
+        <select class="profile-select" id="profile-select"></select>
+      </div>
+
+      <div class="profile-summary" id="profile-summary">
+        <div class="summary-row">
+          <span class="summary-key">Candidate</span>
+          <span class="summary-val" id="summary-name">Loading...</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-key">Email</span>
+          <span class="summary-val" id="summary-email">-</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-key">Phone</span>
+          <span class="summary-val" id="summary-phone">-</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-key">Target Role</span>
+          <span class="summary-val" id="summary-role">-</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Pill Navigation -->
+    <div class="quick-nav">
+      <button class="pill-btn-nav" id="btn-open-options">
+        <span class="btn-icon" id="icon-options"></span>
+        <span>Manage Profiles & Answers</span>
+      </button>
+    </div>
+
+    <!-- Feedback Toast -->
+    <div class="popup-toast hidden" id="popup-toast">
+      <span class="toast-icon" id="toast-icon"></span>
+      <span class="toast-msg" id="toast-msg">Form filled successfully</span>
+    </div>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
