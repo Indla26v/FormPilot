@@ -109,12 +109,6 @@ export class SecurityGuardService {
         }
         return String(s || '').slice(0, 50);
       }) : [],
-      smartQA: Array.isArray(clean.smartQA) ? clean.smartQA.map((qa) => ({
-        id: String(qa.id || `qa_${Date.now()}`).slice(0, 64),
-        questionPattern: String(qa.questionPattern || '').slice(0, 200),
-        answer: String(qa.answer || '').slice(0, 2000),
-        category: String(qa.category || 'general').slice(0, 50)
-      })) : [],
       customFields: Array.isArray(clean.customFields) ? clean.customFields.map((cf) => ({
         key: String(cf.key || '').slice(0, 100),
         value: String(cf.value || '').slice(0, 500)

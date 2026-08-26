@@ -48,18 +48,6 @@ const SAMPLE_QUESTIONS = [
   },
   { 
     form: 'Thinkly AI', 
-    q: 'Do you have VIVAs/Exams/Tests/End-sems in the next 3 months*', 
-    type: 'radio', 
-    options: ['Yes', 'No'] 
-  },
-  { 
-    form: 'Thinkly AI', 
-    q: 'Do you have a college attendance requirement?*', 
-    type: 'radio', 
-    options: ['Yes', 'No'] 
-  },
-  { 
-    form: 'Thinkly AI', 
     q: 'Can you join immediately (i.e in the 1st week of September)*', 
     type: 'radio', 
     options: ['Yes', 'No'] 
@@ -72,48 +60,10 @@ const SAMPLE_QUESTIONS = [
   },
   { 
     form: 'Thinkly AI', 
-    q: 'What did you build it for - a course, a client, yourself, or a hackathon?*', 
-    type: 'text' 
-  },
-  { 
-    form: 'Thinkly AI', 
-    q: 'Have you ever deployed something that other people used in production?*', 
-    type: 'radio', 
-    options: ['Yes, and I maintained it after', 'Yes, but I didn\'t maintain it', 'No, only local or coursework'] 
-  },
-  { 
-    form: 'Thinkly AI', 
-    q: 'Have you written code that calls an LLM API in a loop or pipeline - not a single request?*', 
-    type: 'radio', 
-    options: ['Yes', 'No', 'Not sure what this means'] 
-  },
-  { 
-    form: 'Thinkly AI', 
-    q: 'Describe the hardest bug you\'ve personally debugged. What did you think the cause was, and what was it actually?*', 
-    type: 'text' 
-  },
-  { 
-    form: 'Thinkly AI', 
-    q: 'Paste one prompt you\'ve written and iterated on. Include the version that didn\'t work, the version that did, and one line on what changed.*', 
-    type: 'text' 
-  },
-  { 
-    form: 'Thinkly AI', 
     q: 'What LLM APIs / tools have you actually written code against? (multi-select: OpenAI, Anthropic, Gemini, open-source/local, LangChain/LlamaIndex, voice APIs, none)*', 
     type: 'checkbox', 
     options: ['OpenAI', 'Anthropic', 'Gemini', 'Opensource/Local', 'LangChain/LlamaIndex', 'voice APIs', 'N8N', 'None'] 
   },
-  { 
-    form: 'Thinkly AI', 
-    q: 'A client says your voice agent "sounds robotic and customers are hanging up." What are the first three things you check?*', 
-    type: 'text' 
-  },
-  { 
-    form: 'Thinkly AI', 
-    q: 'Why this role specifically? What about it interests you over a standard SDE internship?*', 
-    type: 'text' 
-  },
-  { form: 'Thinkly AI', q: 'Anything else we should know?', type: 'text' },
 
   // --- CraftAI Form ---
   { 
@@ -126,11 +76,6 @@ const SAMPLE_QUESTIONS = [
   { form: 'CraftAI', q: 'Name*', type: 'text' },
   { form: 'CraftAI', q: 'Github', type: 'text' },
   { form: 'CraftAI', q: 'Projects or Portfolio', type: 'text' },
-  { 
-    form: 'CraftAI', 
-    q: 'What\'s a hill you\'ll die on that has nothing to do with work? (make it fun and make it you)*', 
-    type: 'text' 
-  },
   { form: 'CraftAI', q: 'Stipend Expectations*', type: 'text' }
 ];
 

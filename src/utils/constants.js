@@ -49,9 +49,7 @@ export const DEFAULT_PROFILE = {
     twelfthPercentage: '94.0%',
     twelfthPercentageNumeric: '94.0',
     graduationCgpa: '8.8 / 10',
-    graduationCgpaNumeric: '8.8',
-    collegeAttendanceRequirement: 'No',
-    vivasExamsUpcoming: 'No'
+    graduationCgpaNumeric: '8.8'
   },
 
   // Professional & Experience Details
@@ -70,9 +68,7 @@ export const DEFAULT_PROFILE = {
     expectedCtcLpa: '10', // In LPA scale (e.g. 10)
     expectedCtcNumeric: '1000000',
     stipendExpectation: 'Rs. 40,000 - 60,000 / month',
-    stipendExpectationNumeric: '50000',
-    deployedInProduction: 'Yes, and I maintained it after',
-    writtenLlmPipelines: 'Yes'
+    stipendExpectationNumeric: '50000'
   },
 
   // Social & Portfolio Links
@@ -88,70 +84,22 @@ export const DEFAULT_PROFILE = {
   skills: [
     'Next js',
     'Next.js',
-    'N8N',
-    'Fast API',
     'FastAPI',
-    'Postgress',
+    'Python',
+    'TypeScript',
     'Postgres',
     'PostgreSQL',
-    'Vector DB setup',
+    'Docker',
+    'AWS',
+    'LangChain',
     'OpenAI',
     'Anthropic',
     'Gemini',
     'Opensource/Local',
     'LangChain/LlamaIndex',
     'voice APIs',
-    'Python',
-    'JavaScript',
-    'TypeScript',
-    'React',
-    'Docker'
-  ],
-
-  // Targeted Technical & Job Application Q&A Responses
-  smartAnswers: [
-    {
-      id: 'qa_built_for',
-      keywords: ['What did you build it for', 'built it for', 'course, a client, yourself, or a hackathon'],
-      answer: 'Built for myself and open-source users as an end-to-end autonomous AI workflow system with multi-agent orchestration.'
-    },
-    {
-      id: 'qa_hardest_bug',
-      keywords: ['hardest bug', 'personally debugged', 'what did you think the cause was', 'cause was, and what was it actually'],
-      answer: 'Debugged a race condition in an asynchronous streaming LLM pipeline where WebSocket connections dropped under burst traffic. Initially suspected network timeouts or rate limits from LLM providers, but root cause was unbuffered backpressure in the chunk-emitter event loop causing memory leaks and socket resets.'
-    },
-    {
-      id: 'qa_prompt_iteration',
-      keywords: ['Paste one prompt', 'iterated on', 'version that didn\'t work', 'version that did', 'one line on what changed'],
-      answer: `[Failed Version]: "Extract client intent, budget, and contact info from the call transcript and output JSON." -> [Issue: Hallucinated schema and missed nested constraints under edge cases].
-[Working Version]: "You are a deterministic financial call extractor. Output ONLY valid JSON strictly matching the schema: {"intent": enum, "budget_inr": number|null, "lead_status": "HOT"|"WARM"|"COLD"}. If any attribute is ambiguous, set to null. Do not include markdown formatting or commentary."
-[What changed]: Replaced vague open extraction with strict enum bounds, explicit null-handling rules, and zero markdown envelope instructions.`
-    },
-    {
-      id: 'qa_robotic_voice_check',
-      keywords: ['robotic and customers are hanging up', 'first three things you check', 'sounds robotic'],
-      answer: '1. Latency & Audio Buffer Pipeline: Check Time-To-First-Byte (TTFB) on TTS generation, chunk size streaming, and WebSocket jitter. 2. Speech Synthesis Prosody: Adjust temperature, speech rate (wpm), punctuation injection, and emotion/pause tags (SSML). 3. Prompt Turn-Taking: Inspect LLM response verbosity, filler token generation, and conversational naturalness vs scripted monotone output.'
-    },
-    {
-      id: 'qa_why_role',
-      keywords: ['Why this role specifically', 'What about it interests you over a standard SDE', 'interests you over a standard'],
-      answer: 'I thrive at the intersection of client-facing engineering and cutting-edge production AI. Rather than building isolated backend tickets, I want direct ownership of live AI agent performance, prompt engineering in production, and rapid feedback loops with real enterprise users.'
-    },
-    {
-      id: 'qa_hill_to_die_on',
-      keywords: ['hill you\'ll die on', 'hill you will die on', 'nothing to do with work', 'make it fun'],
-      answer: 'Cold brew coffee is objectively superior to hot espresso in high-pressure debugging sessions, and pineapple on pizza is a perfectly valid savory-sweet flavor profile.'
-    },
-    {
-      id: 'qa_coding_stack',
-      keywords: ['What coding stack/ tool do you understand', 'stack/ tool do you understand', 'tech stack'],
-      answer: 'Next.js, FastAPI, Python, TypeScript, Postgres, Vector DBs (Pinecone/Qdrant/pgvector), LangChain, n8n, OpenAI/Anthropic/Gemini APIs, and Docker.'
-    },
-    {
-      id: 'qa_anything_else',
-      keywords: ['Anything else we should know', 'additional information', 'any other details'],
-      answer: 'High agency builder ready to deploy code, debug production voice/agent pipelines, and commit full-time with immediate availability.'
-    }
+    'N8N',
+    'Vector DBs'
   ],
 
   // Generic key-value custom fields
@@ -377,48 +325,15 @@ export const FIELD_DICTIONARY = [
     ],
     defaultChoice: 'Yes'
   },
-  // College Attendance Requirement
+  // Technical Skills / Stack Text
   {
-    fieldPath: 'education.collegeAttendanceRequirement',
-    type: 'choice_or_text',
+    fieldPath: 'skills',
+    type: 'text',
     aliases: [
-      'do you have a college attendance requirement', 'attendance requirement', 'college attendance'
-    ],
-    defaultChoice: 'No'
-  },
-  // Upcoming Exams / VIVAs
-  {
-    fieldPath: 'education.vivasExamsUpcoming',
-    type: 'choice_or_text',
-    aliases: [
-      'do you have vivas/exams/tests/end-sems in the next 3 months',
-      'vivas/exams/tests/end-sems',
-      'upcoming exams',
-      'exams in next 3 months'
-    ],
-    defaultChoice: 'No'
-  },
-  // Deployed in Production
-  {
-    fieldPath: 'professional.deployedInProduction',
-    type: 'choice_or_text',
-    aliases: [
-      'have you ever deployed something that other people used in production',
-      'deployed something that other people used in production',
-      'production deployment'
-    ],
-    defaultChoice: 'Yes, and I maintained it after'
-  },
-  // Written LLM in Loop
-  {
-    fieldPath: 'professional.writtenLlmPipelines',
-    type: 'choice_or_text',
-    aliases: [
-      'have you written code that calls an llm api in a loop or pipeline',
-      'llm api in a loop or pipeline',
-      'llm loop'
-    ],
-    defaultChoice: 'Yes'
+      'skills', 'technical skills', 'key skills', 'tech stack', 'coding stack',
+      'tools and technologies', 'technologies', 'what coding stack tool do you understand',
+      'stack tool do you understand', 'what coding stack', 'coding stack tool do you understand'
+    ]
   },
   // LinkedIn URL
   {

@@ -23,6 +23,9 @@ export class FieldMatcherService {
    */
   static getNestedValue(obj, path) {
     if (!obj || !path) return undefined;
+    if (path === 'skills' && Array.isArray(obj.skills)) {
+      return obj.skills.map((s) => (typeof s === 'object' && s !== null ? s.name : s)).filter(Boolean).join(', ');
+    }
     if (path === 'professional.companyAndRole') {
       const role = obj.professional?.currentRole || '';
       const org = obj.professional?.currentOrganization || '';
@@ -777,36 +780,22 @@ export class FieldMatcherService {
       return { matched: false, reason: 'Missing question text or profile' };
     }
 
-    // 1. Check Smart Q&A Answers first for specialized / long-form questions
-    const smartMatch = this.matchSmartAnswers(questionText, profile);
-    if (smartMatch && smartMatch.confidence >= 0.7) {
-      return smartMatch;
-    }
-
-    // 2. Check Standard Dictionary Fields
+    // 1. Check Standard Dictionary Fields
     const dictMatch = this.matchDictionaryField(questionText, profile);
     if (dictMatch && dictMatch.confidence >= 0.6) {
-      // If smart match has higher confidence than partial dictionary match, prefer smart match
-      if (smartMatch && smartMatch.confidence > dictMatch.confidence) {
-        return smartMatch;
-      }
       return dictMatch;
     }
 
-    // 3. Check Custom Profile Fields
+    // 2. Check Custom Profile Fields
     const customMatch = this.matchCustomFields(questionText, profile);
     if (customMatch) {
       return customMatch;
     }
 
-    // 4. Check Skill-specific Experience / Proficiency questions (e.g. "Spring Boot experience")
+    // 3. Check Skill-specific Experience / Proficiency questions (e.g. "Spring Boot experience")
     const skillMatch = this.matchSkillExperienceOrLevel(questionText, profile);
     if (skillMatch && skillMatch.confidence >= 0.7) {
       return skillMatch;
-    }
-
-    if (smartMatch && smartMatch.confidence >= 0.5) {
-      return smartMatch;
     }
 
     return { matched: false, confidence: 0 };

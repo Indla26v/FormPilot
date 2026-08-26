@@ -803,35 +803,6 @@ body {
   color: #f87171;
 }
 
-/* Smart Q&A List */
-.qa-list-container {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.qa-card {
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.qa-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.qa-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #a5b4fc;
-}
-
 /* Custom Fields List */
 .custom-fields-list {
   display: flex;

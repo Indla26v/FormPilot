@@ -119,10 +119,6 @@ function initNavigation() {
       title: 'AI & Local LLM Setup',
       desc: 'Connect to local Ollama (100% free & offline) or Google Gemini / OpenAI / Anthropic cloud APIs.'
     },
-    'tab-smartqa': {
-      title: 'Smart Q&A Answers',
-      desc: 'Pre-configure long-form answers for prompt engineering, debugging, and reasons for joining.'
-    },
     'tab-custom': {
       title: 'Custom Fields',
       desc: 'Map custom question titles to exact answers.'
@@ -194,8 +190,6 @@ async function loadProfilesAndSettings() {
   setVal('field-twelfthPercentageNumeric', currentProfile.education?.twelfthPercentageNumeric);
   setVal('field-graduationCgpa', currentProfile.education?.graduationCgpa);
   setVal('field-graduationCgpaNumeric', currentProfile.education?.graduationCgpaNumeric);
-  setVal('field-collegeAttendanceRequirement', currentProfile.education?.collegeAttendanceRequirement);
-  setVal('field-vivasExamsUpcoming', currentProfile.education?.vivasExamsUpcoming);
 
   // Populate Experience
   setVal('field-currentOrganization', currentProfile.professional?.currentOrganization);
@@ -211,8 +205,6 @@ async function loadProfilesAndSettings() {
   setVal('field-expectedCtcNumeric', currentProfile.professional?.expectedCtcNumeric);
   setVal('field-stipendExpectation', currentProfile.professional?.stipendExpectation);
   setVal('field-stipendExpectationNumeric', currentProfile.professional?.stipendExpectationNumeric);
-  setVal('field-deployedInProduction', currentProfile.professional?.deployedInProduction);
-  setVal('field-writtenLlmPipelines', currentProfile.professional?.writtenLlmPipelines);
 
   // Populate Links
   setVal('field-linkedinUrl', currentProfile.links?.linkedinUrl);
@@ -223,9 +215,6 @@ async function loadProfilesAndSettings() {
 
   // Render Skills
   renderSkills();
-
-  // Render Smart Q&A
-  renderSmartQA();
 
   // Render Custom Fields
   renderCustomFields();
@@ -311,54 +300,6 @@ function renderSkills() {
     });
 
     container.appendChild(pill);
-  });
-}
-
-/**
- * Render Smart Q&A Cards
- */
-function renderSmartQA() {
-  const container = document.getElementById('qa-list-container');
-  container.innerHTML = '';
-
-  const qaList = currentProfile.smartAnswers || [];
-  qaList.forEach((qa, index) => {
-    const card = document.createElement('div');
-    card.className = 'qa-card';
-
-    const keywordsStr = (qa.keywords || []).join(', ');
-
-    card.innerHTML = `
-      <div class="qa-card-top">
-        <div class="qa-card-title">Question #${index + 1}</div>
-        <button type="button" class="pill-btn-small pill-btn-danger-ghost qa-delete-btn" data-index="${index}" title="Delete Q&A">
-          ${ICONS.trash}
-        </button>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Matching Keywords / Question Phrasings (Comma-separated)</label>
-        <input type="text" class="form-input qa-keywords-input" value="${escapeHtml(keywordsStr)}" placeholder="e.g. hardest bug, personally debugged" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Tailored Answer</label>
-        <textarea class="form-textarea qa-answer-input" rows="3" placeholder="Enter your detailed answer...">${escapeHtml(qa.answer || '')}</textarea>
-      </div>
-    `;
-
-    card.querySelector('.qa-delete-btn').addEventListener('click', () => {
-      currentProfile.smartAnswers.splice(index, 1);
-      renderSmartQA();
-    });
-
-    card.querySelector('.qa-keywords-input').addEventListener('input', (e) => {
-      qa.keywords = e.target.value.split(',').map((s) => s.trim()).filter(Boolean);
-    });
-
-    card.querySelector('.qa-answer-input').addEventListener('input', (e) => {
-      qa.answer = e.target.value;
-    });
-
-    container.appendChild(card);
   });
 }
 
@@ -891,16 +832,6 @@ function initActionHandlers() {
     });
   }
 
-  // Add Smart Q&A
-  document.getElementById('btn-add-qa').addEventListener('click', () => {
-    currentProfile.smartAnswers.unshift({
-      id: `qa_${Date.now()}`,
-      keywords: ['new question keyword'],
-      answer: 'Your custom detailed answer...'
-    });
-    renderSmartQA();
-  });
-
   // Add Custom Field
   document.getElementById('btn-add-custom-field').addEventListener('click', () => {
     currentProfile.customFields.push({ key: '', value: '' });
@@ -1108,9 +1039,7 @@ async function saveCurrentProfile() {
     twelfthPercentage: getVal('field-twelfthPercentage'),
     twelfthPercentageNumeric: getVal('field-twelfthPercentageNumeric'),
     graduationCgpa: getVal('field-graduationCgpa'),
-    graduationCgpaNumeric: getVal('field-graduationCgpaNumeric'),
-    collegeAttendanceRequirement: getVal('field-collegeAttendanceRequirement'),
-    vivasExamsUpcoming: getVal('field-vivasExamsUpcoming')
+    graduationCgpaNumeric: getVal('field-graduationCgpaNumeric')
   };
 
   currentProfile.professional = {
@@ -1128,9 +1057,7 @@ async function saveCurrentProfile() {
     expectedCtcLpa: getVal('field-expectedCtc'),
     expectedCtcNumeric: getVal('field-expectedCtcNumeric'),
     stipendExpectation: getVal('field-stipendExpectation'),
-    stipendExpectationNumeric: getVal('field-stipendExpectationNumeric'),
-    deployedInProduction: getVal('field-deployedInProduction'),
-    writtenLlmPipelines: getVal('field-writtenLlmPipelines')
+    stipendExpectationNumeric: getVal('field-stipendExpectationNumeric')
   };
 
   currentProfile.links = {
