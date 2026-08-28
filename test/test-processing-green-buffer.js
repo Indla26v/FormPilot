@@ -39,8 +39,10 @@ class MockElement {
 }
 
 // Add classList polyfill methods
-Set.prototype.add = function(cls) { this.addReal(cls); return this; };
-Set.prototype.addReal = Set.prototype.add;
+if (!Set.prototype.addReal) {
+  Set.prototype.addReal = Set.prototype.add;
+  Set.prototype.add = function(cls) { this.addReal(cls); return this; };
+}
 Set.prototype.contains = function(cls) { return this.has(cls); };
 Set.prototype.remove = function(cls) { return this.delete(cls); };
 

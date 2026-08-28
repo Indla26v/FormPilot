@@ -31,56 +31,70 @@ export class RetrievalService {
   static scoreChunk(queryTokens, chunk) {
     if (!chunk || !chunk.text || queryTokens.length === 0) return 0;
 
-    const chunkTokens = this.tokenize(chunk.text);
-    const sectionTokens = this.tokenize(chunk.sectionTitle || '');
-    const titleTokens = this.tokenize(chunk.docTitle || '');
+    let termFreq = chunk._termFreq;
+    let sectionTokens = chunk._sectionTokens;
+    let titleTokens = chunk._titleTokens;
+    let lengthPenalty = chunk._lengthPenalty;
 
-    if (chunkTokens.length === 0) return 0;
+    // Fallback and on-demand cache for legacy or non-indexed chunks
+    if (!termFreq) {
+      const chunkTokens = this.tokenize(chunk.text);
+      if (chunkTokens.length === 0) return 0;
+      termFreq = {};
+      for (const t of chunkTokens) {
+        termFreq[t] = (termFreq[t] || 0) + 1;
+      }
+      sectionTokens = this.tokenize(chunk.sectionTitle || '');
+      titleTokens = this.tokenize(chunk.docTitle || '');
+      lengthPenalty = Math.sqrt(chunkTokens.length) || 1;
 
-    // Frequency map of chunk tokens
-    const chunkFreq = new Map();
-    chunkTokens.forEach((t) => chunkFreq.set(t, (chunkFreq.get(t) || 0) + 1));
+      // In-memory cache on chunk
+      chunk._termFreq = termFreq;
+      chunk._sectionTokens = sectionTokens;
+      chunk._titleTokens = titleTokens;
+      chunk._lengthPenalty = lengthPenalty;
+    }
 
     let score = 0;
+    const isMap = termFreq instanceof Map;
 
     for (const qToken of queryTokens) {
-      // 1. Chunk body term frequency
-      if (chunkFreq.has(qToken)) {
-        const tf = chunkFreq.get(qToken);
+      // 1. Chunk body term frequency (O(1) direct lookup)
+      const tf = isMap ? termFreq.get(qToken) : termFreq[qToken];
+      if (tf !== undefined && tf > 0) {
         score += 1.0 + Math.log(1 + tf);
       } else {
         // Partial substring match for technical words (e.g. "postgres" in "postgresql")
-        for (const [cToken, tf] of chunkFreq.entries()) {
+        const entries = isMap ? termFreq.entries() : Object.entries(termFreq);
+        for (const [cToken, cTf] of entries) {
           if (cToken.includes(qToken) || qToken.includes(cToken)) {
-            score += 0.5 * Math.log(1 + tf);
+            score += 0.5 * Math.log(1 + cTf);
             break;
           }
         }
       }
 
       // 2. Section Header Bonus
-      if (sectionTokens.includes(qToken)) {
+      if (sectionTokens && (Array.isArray(sectionTokens) ? sectionTokens.includes(qToken) : sectionTokens.has?.(qToken))) {
         score += 2.5;
       }
 
       // 3. Document Title Bonus
-      if (titleTokens.includes(qToken)) {
+      if (titleTokens && (Array.isArray(titleTokens) ? titleTokens.includes(qToken) : titleTokens.has?.(qToken))) {
         score += 1.8;
       }
     }
 
-    // Normalize by chunk length (sub-linear to prevent penalizing informative chunks)
-    const lengthPenalty = Math.sqrt(chunkTokens.length) || 1;
-    return score / lengthPenalty;
+    return score / (lengthPenalty || 1);
   }
 
   /**
-   * Retrieve top-K relevant chunks for a form question
+   * Retrieve top-K relevant chunks for a form question scoped to a specific profile
    */
-  static async retrieveRelevantChunks(questionText, topK = 4) {
+  static async retrieveRelevantChunks(questionText, topK = 4, profileId = null) {
     if (!questionText || typeof questionText !== 'string') return [];
 
-    const chunks = await RagKnowledgeBaseService.getAllChunks();
+    const chunks = await RagKnowledgeBaseService.getAllChunks(profileId);
     if (chunks.length === 0) return [];
 
     const queryTokens = this.tokenize(questionText);

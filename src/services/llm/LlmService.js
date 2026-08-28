@@ -16,21 +16,89 @@ export const DEFAULT_LLM_CONFIG = {
   ollamaEndpoint: 'http://localhost:11434',
   ollamaModel: 'llama3.2',
   geminiApiKey: '',
-  geminiModel: 'gemini-1.5-flash',
+  geminiModel: '',
   openaiApiKey: '',
-  openaiModel: 'gpt-4o-mini',
+  openaiModel: '',
   anthropicApiKey: '',
-  anthropicModel: 'claude-3-5-haiku-20241022',
+  anthropicModel: '',
   temperature: 0.3,
   maxTokens: 500
 };
 
 /**
- * Universal Proxy Request Handler (Bypasses browser extension CSP/Mixed-Content & handles timeouts)
+ * In-Memory LRU Response Cache for Form Answers
+ */
+export class LruResponseCache {
+  constructor(maxCapacity = 50) {
+    this.maxCapacity = maxCapacity;
+    this.cache = new Map();
+  }
+
+  get(key) {
+    if (!this.cache.has(key)) return undefined;
+    const val = this.cache.get(key);
+    this.cache.delete(key);
+    this.cache.set(key, val);
+    return val;
+  }
+
+  set(key, val) {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.maxCapacity) {
+      const oldestKey = this.cache.keys().next().value;
+      this.cache.delete(oldestKey);
+    }
+    this.cache.set(key, val);
+  }
+
+  clear() {
+    this.cache.clear();
+  }
+
+  get size() {
+    return this.cache.size;
+  }
+}
+
+/**
+ * Deduplicate text across retrieved RAG chunks to save prompt tokens
+ */
+export function deduplicateContextChunks(chunks = []) {
+  if (!chunks || chunks.length === 0) return [];
+  const seenLines = new Set();
+  return chunks.map((c) => {
+    const rawLines = (c.text || '').split('\n');
+    const uniqueLines = [];
+    for (const line of rawLines) {
+      const norm = line.trim().toLowerCase();
+      if (norm.length > 20) {
+        if (seenLines.has(norm)) continue;
+        seenLines.add(norm);
+      }
+      uniqueLines.push(line);
+    }
+    const cleanText = uniqueLines.join('\n').trim();
+    return { ...c, text: cleanText || c.text };
+  }).filter((c) => c.text && c.text.length > 5);
+}
+
+/**
+ * Universal Proxy Request Handler (Bypasses browser extension CSP/Mixed-Content & handles timeouts/abort signals)
  */
 async function fetchViaProxyOrDirect(endpoint, options = {}) {
+  if (options.signal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError');
+  }
+
   if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
     return new Promise((resolve, reject) => {
+      if (options.signal) {
+        options.signal.addEventListener('abort', () => {
+          reject(new DOMException('Aborted', 'AbortError'));
+        });
+      }
+
       chrome.runtime.sendMessage({
         action: 'PROXY_FETCH',
         url: endpoint,
@@ -73,8 +141,8 @@ async function fetchViaProxyOrDirect(endpoint, options = {}) {
 /**
  * Base Abstract Provider
  */
-class BaseLlmProvider {
-  async generate({ prompt, systemPrompt, config }) {
+export class BaseLlmProvider {
+  async generate({ prompt, systemPrompt, config, signal }) {
     throw new Error('generate method must be implemented by provider');
   }
   async testConnection(config) {
@@ -152,7 +220,7 @@ class OllamaProvider extends BaseLlmProvider {
     }
   }
 
-  async generate({ prompt, systemPrompt, config }) {
+  async generate({ prompt, systemPrompt, config, signal }) {
     const endpoint = (config.ollamaEndpoint || 'http://localhost:11434').replace(/\/+$/, '');
     const rawModel = (config.ollamaModel || 'gemma4:e4b').trim();
     const model = await this.resolveModel(endpoint, rawModel);
@@ -173,7 +241,8 @@ class OllamaProvider extends BaseLlmProvider {
     const data = await fetchViaProxyOrDirect(`${endpoint}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: signal || config?.signal
     });
 
     return data?.message?.content?.trim() || data?.response?.trim() || '';
@@ -186,10 +255,13 @@ class OllamaProvider extends BaseLlmProvider {
 class GeminiProvider extends BaseLlmProvider {
   async testConnection(config) {
     if (!config.geminiApiKey) {
-      return { success: false, message: 'Google Gemini API key is missing.' };
+      return { success: false, message: 'Google Gemini API key is missing. Please enter your API key in Settings.' };
+    }
+    const model = (config.geminiModel || '').trim();
+    if (!model) {
+      return { success: false, message: 'Gemini Model Name is missing. Please check https://aistudio.google.com/docs and enter a model name.' };
     }
     try {
-      const model = config.geminiModel || 'gemini-1.5-flash';
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.geminiApiKey}`;
 
       const data = await fetchViaProxyOrDirect(url, {
@@ -213,10 +285,11 @@ class GeminiProvider extends BaseLlmProvider {
     }
   }
 
-  async generate({ prompt, systemPrompt, config }) {
+  async generate({ prompt, systemPrompt, config, signal }) {
     if (!config.geminiApiKey) throw new Error('Google Gemini API Key is required.');
+    const model = (config.geminiModel || '').trim();
+    if (!model) throw new Error('Gemini Model Name is missing. Please enter a valid model in Settings from https://aistudio.google.com/docs');
 
-    const model = config.geminiModel || 'gemini-1.5-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.geminiApiKey}`;
 
     const payload = {
@@ -235,7 +308,8 @@ class GeminiProvider extends BaseLlmProvider {
     const data = await fetchViaProxyOrDirect(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: signal || config?.signal
     });
 
     return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
@@ -247,9 +321,10 @@ class GeminiProvider extends BaseLlmProvider {
  */
 class OpenAiProvider extends BaseLlmProvider {
   async testConnection(config) {
-    if (!config.openaiApiKey) return { success: false, message: 'OpenAI API key is missing.' };
+    if (!config.openaiApiKey) return { success: false, message: 'OpenAI API key is missing. Please enter your API key in Settings.' };
+    const model = (config.openaiModel || '').trim();
+    if (!model) return { success: false, message: 'OpenAI Model Name is missing. Please check https://developers.openai.com/api/docs/models and enter a model name.' };
     try {
-      const model = config.openaiModel || 'gpt-4o-mini';
       const data = await fetchViaProxyOrDirect('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -275,10 +350,11 @@ class OpenAiProvider extends BaseLlmProvider {
     }
   }
 
-  async generate({ prompt, systemPrompt, config }) {
+  async generate({ prompt, systemPrompt, config, signal }) {
     if (!config.openaiApiKey) throw new Error('OpenAI API Key is required.');
+    const model = (config.openaiModel || '').trim();
+    if (!model) throw new Error('OpenAI Model Name is missing. Please enter a valid model in Settings from https://developers.openai.com/api/docs/models');
 
-    const model = config.openaiModel || 'gpt-4o-mini';
     const data = await fetchViaProxyOrDirect('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -293,7 +369,8 @@ class OpenAiProvider extends BaseLlmProvider {
         ],
         temperature: config.temperature || 0.3,
         max_tokens: config.maxTokens || 500
-      })
+      }),
+      signal: signal || config?.signal
     });
 
     return data.choices?.[0]?.message?.content?.trim() || '';
@@ -305,9 +382,10 @@ class OpenAiProvider extends BaseLlmProvider {
  */
 class AnthropicProvider extends BaseLlmProvider {
   async testConnection(config) {
-    if (!config.anthropicApiKey) return { success: false, message: 'Anthropic API key is missing.' };
+    if (!config.anthropicApiKey) return { success: false, message: 'Anthropic API key is missing. Please enter your API key in Settings.' };
+    const model = (config.anthropicModel || '').trim();
+    if (!model) return { success: false, message: 'Anthropic Model Name is missing. Please check https://platform.claude.com/docs/en/models/overview and enter a model name.' };
     try {
-      const model = config.anthropicModel || 'claude-3-5-haiku-20241022';
       const data = await fetchViaProxyOrDirect('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -335,10 +413,11 @@ class AnthropicProvider extends BaseLlmProvider {
     }
   }
 
-  async generate({ prompt, systemPrompt, config }) {
+  async generate({ prompt, systemPrompt, config, signal }) {
     if (!config.anthropicApiKey) throw new Error('Anthropic API Key is required.');
+    const model = (config.anthropicModel || '').trim();
+    if (!model) throw new Error('Anthropic Model Name is missing. Please enter a valid model in Settings from https://platform.claude.com/docs/en/models/overview');
 
-    const model = config.anthropicModel || 'claude-3-5-haiku-20241022';
     const data = await fetchViaProxyOrDirect('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -353,7 +432,8 @@ class AnthropicProvider extends BaseLlmProvider {
         messages: [{ role: 'user', content: prompt }],
         temperature: config.temperature || 0.3,
         max_tokens: config.maxTokens || 500
-      })
+      }),
+      signal: signal || config?.signal
     });
 
     return data.content?.[0]?.text?.trim() || '';
@@ -364,8 +444,25 @@ class AnthropicProvider extends BaseLlmProvider {
  * LLM Factory & Generation Orchestrator
  */
 export class LlmService {
+  static _customProviders = new Map();
+  static _responseCache = new LruResponseCache(50);
+
+  /**
+   * Register a custom or mock LLM provider (Open/Closed Principle)
+   */
+  static registerProvider(name, providerInstance) {
+    if (name && providerInstance) {
+      this._customProviders.set(name.toLowerCase(), providerInstance);
+    }
+  }
+
   static getProvider(providerName) {
-    switch (providerName) {
+    const norm = (providerName || '').toLowerCase();
+    if (this._customProviders.has(norm)) {
+      return this._customProviders.get(norm);
+    }
+
+    switch (norm) {
       case 'ollama':
         return new OllamaProvider();
       case 'gemini':
@@ -377,6 +474,14 @@ export class LlmService {
       default:
         return new OllamaProvider();
     }
+  }
+
+  static clearResponseCache() {
+    this._responseCache.clear();
+  }
+
+  static getResponseCacheSize() {
+    return this._responseCache.size;
   }
 
   static async getConfig() {
@@ -404,12 +509,27 @@ export class LlmService {
   /**
    * Synthesize candidate answer using retrieved RAG context chunks and temporary conversation memory
    */
-  static async generateRagAnswer({ question, retrievedChunks, profile, customInstructions = '', conversationHistory = [], currentFieldValue = '', jobDescription = '' }) {
-    const config = await this.getConfig();
+  static async generateRagAnswer({ question, retrievedChunks, profile, customInstructions = '', conversationHistory = [], currentFieldValue = '', jobDescription = '', config: customConfig = null, signal = null }) {
+    const savedConfig = await this.getConfig();
+    const config = customConfig ? { ...savedConfig, ...customConfig } : savedConfig;
     const provider = this.getProvider(config.provider);
 
+    // Question-Hash Response Cache Check
+    const isInitialGeneration = !currentFieldValue && (!conversationHistory || conversationHistory.length === 0);
+    const cacheKey = isInitialGeneration
+      ? `q:${(question || '').trim().toLowerCase()}|p:${profile?.id || ''}|jd:${(jobDescription || '').slice(0, 100)}|prov:${config.provider}|inst:${customInstructions}`
+      : null;
+
+    if (cacheKey) {
+      const cached = this._responseCache.get(cacheKey);
+      if (cached) return cached;
+    }
+
+    // Token-efficient context deduplication
+    const deduplicatedChunks = deduplicateContextChunks(retrievedChunks);
+
     // Build structured context from retrieved chunks
-    const contextText = (retrievedChunks || [])
+    const contextText = deduplicatedChunks
       .map((c, i) => `[Source ${i + 1}: ${c.docTitle} - ${c.sectionTitle || 'General'}]\n${c.text}`)
       .join('\n\n');
 
@@ -480,10 +600,75 @@ ALIGNMENT INSTRUCTION: Tailor and align your response to directly emphasize the 
       userPrompt += `${customInstructions ? `USER INSTRUCTIONS / CONSTRAINTS:\n"${customInstructions}"\n\n` : ''}Generate the final response (strictly using candidate's actual skills/resume tools only):`;
     }
 
-    return await provider.generate({
+    const result = await provider.generate({
       prompt: userPrompt,
       systemPrompt: systemPrompt,
-      config: config
+      config: config,
+      signal: signal || customConfig?.signal || config?.signal
     });
+
+    if (cacheKey && result) {
+      this._responseCache.set(cacheKey, result);
+    }
+
+    return result;
+  }
+
+  /**
+   * Pre-warm / wake up local LLM model into VRAM / Memory
+   */
+  static async wakeUpModel(modelName = null) {
+    const config = await this.getConfig();
+    const providerName = config.provider || 'ollama';
+
+    if (providerName === 'ollama') {
+      const endpoint = (config.ollamaEndpoint || 'http://localhost:11434').replace(/\/+$/, '');
+      const rawModel = (modelName || config.ollamaModel || 'gemma4:e4b').trim();
+      const provider = this.getProvider('ollama');
+
+      try {
+        const model = await provider.resolveModel(endpoint, rawModel);
+        // Pre-warm model in memory by generating 1 token with keep_alive
+        const payload = {
+          model: model,
+          messages: [{ role: 'user', content: 'ping' }],
+          stream: false,
+          keep_alive: '10m',
+          options: {
+            num_predict: 1,
+            temperature: 0.1
+          }
+        };
+
+        await fetchViaProxyOrDirect(`${endpoint}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        return {
+          success: true,
+          model: model,
+          provider: 'ollama',
+          message: `Model "${model}" is awake & loaded in GPU / Memory!`
+        };
+      } catch (err) {
+        return {
+          success: false,
+          model: rawModel,
+          provider: 'ollama',
+          message: `Ollama is offline at ${endpoint}. Run 'ollama serve' in your terminal.`
+        };
+      }
+    } else {
+      const provider = this.getProvider(providerName);
+      const testRes = await provider.testConnection(config);
+      return {
+        success: testRes.success,
+        model: config[`${providerName}Model`] || providerName,
+        provider: providerName,
+        message: testRes.message
+      };
+    }
   }
 }

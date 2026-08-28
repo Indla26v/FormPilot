@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "FormPilot - AI Google Forms Auto-Filler",
+  "name": "Fillvyn - AI Forms Auto-Filler",
   "version": "1.0.1",
-  "description": "Smart, modern auto-filler for Google Forms. Seamlessly fills candidate info, education, GPA, social links, and AI synthesized answers.",
+  "description": "Smart, modern auto-filler for Google Forms & Microsoft Forms. Seamlessly fills candidate info, education, GPA, social links, and AI synthesized answers.",
   "permissions": [
     "storage",
     "activeTab",
@@ -32,7 +32,7 @@
   },
   "action": {
     "default_popup": "src/popup/popup.html",
-    "default_title": "FormPilot - AI Google Forms Auto-Filler",
+    "default_title": "Fillvyn - AI Forms Auto-Filler",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

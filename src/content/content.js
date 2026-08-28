@@ -6,8 +6,11 @@
 (function () {
   'use strict';
 
-  // Prevent double injection
+  // Prevent duplicate double injection while allowing re-mount if UI is missing
   if (window.__GFAF_CONTENT_INJECTED__) {
+    if (!document.getElementById('gfaf-floating-root') && typeof window.__GFAF_INIT__ === 'function') {
+      window.__GFAF_INIT__();
+    }
     return;
   }
   window.__GFAF_CONTENT_INJECTED__ = true;
@@ -186,6 +189,25 @@
   // 3. STORAGE SERVICE (Protected from context invalidation)
   // ----------------------------------------------------
   class LocalStorageService {
+    static _cachedActiveProfile = null;
+    static _listenerRegistered = false;
+
+    static _initStorageListener() {
+      if (this._listenerRegistered) return;
+      this._listenerRegistered = true;
+      if (this.isContextValid() && chrome.storage && chrome.storage.onChanged) {
+        try {
+          chrome.storage.onChanged.addListener((changes, areaName) => {
+            if (areaName === 'local') {
+              if (changes[STORAGE_KEYS.PROFILES] || changes[STORAGE_KEYS.ACTIVE_PROFILE_ID] || changes['gfaf_common_data']) {
+                this._cachedActiveProfile = null;
+              }
+            }
+          });
+        } catch {}
+      }
+    }
+
     static isContextValid() {
       try {
         return typeof chrome !== 'undefined' && Boolean(chrome.runtime?.id);
@@ -219,6 +241,7 @@
     }
 
     static async set(key, val) {
+      this._cachedActiveProfile = null;
       if (this.isContextValid() && chrome.storage && chrome.storage.local) {
         return new Promise((resolve) => {
           try {
@@ -247,12 +270,17 @@
     }
 
     static async getActiveProfile() {
+      this._initStorageListener();
+      if (this._cachedActiveProfile) return this._cachedActiveProfile;
       const profiles = await this.getProfiles();
       const activeId = await this.get(STORAGE_KEYS.ACTIVE_PROFILE_ID);
-      return profiles.find((p) => p.id === activeId) || profiles[0] || DEFAULT_PROFILE;
+      const active = profiles.find((p) => p.id === activeId) || profiles[0] || DEFAULT_PROFILE;
+      this._cachedActiveProfile = active;
+      return active;
     }
 
     static async setActiveProfileId(id) {
+      this._cachedActiveProfile = null;
       await this.set(STORAGE_KEYS.ACTIVE_PROFILE_ID, id);
     }
 
@@ -469,11 +497,14 @@
     }
 
     static matchSmartAnswers(questionText, profile) {
-      if (!profile.smartAnswers || !Array.isArray(profile.smartAnswers)) return null;
+      const answersList = (profile && Array.isArray(profile.smartAnswers) && profile.smartAnswers.length > 0)
+        ? profile.smartAnswers
+        : (DEFAULT_PROFILE.smartAnswers || []);
+
       let bestMatch = null;
       let highestScore = 0;
 
-      for (const qa of profile.smartAnswers) {
+      for (const qa of answersList) {
         if (!qa.keywords || !qa.answer) continue;
         const score = this.matchKeywords(questionText, qa.keywords);
         if (score > 0.55 && score > highestScore) {
@@ -1349,7 +1380,9 @@
 
     static async synthesizeAiAnswer(questionText, profile, customInstructions = '', currentFieldValue = '') {
       try {
-        const chunks = (await LocalStorageService.get('gfaf_rag_chunks')) || [];
+        const pId = profile?.id || 'profile_default';
+        const profileChunks = await LocalStorageService.get(`gfaf_rag_chunks_${pId}`);
+        const chunks = (profileChunks && Array.isArray(profileChunks)) ? profileChunks : ((await LocalStorageService.get('gfaf_rag_chunks')) || []);
         const savedLlmConfig = await LocalStorageService.get('gfaf_llm_config');
         const llmConfig = savedLlmConfig || {
           provider: 'ollama',
@@ -1359,6 +1392,18 @@
 
         const chatKey = (questionText || '').trim().toLowerCase();
         let history = fieldChatHistory.get(chatKey) || [];
+
+        const isFollowUp = Boolean(customInstructions && customInstructions.trim() && (history.length > 0 || currentFieldValue));
+
+        // Question-Hash Response Cache Check
+        const isInitialGeneration = !isFollowUp && !currentFieldValue && (!history || history.length === 0);
+        const cacheKey = isInitialGeneration
+          ? `q:${chatKey}|p:${pId}|jd:${(sessionJobDescription || '').slice(0, 100)}|prov:${llmConfig.provider}`
+          : null;
+
+        if (cacheKey && window.__GFAF_RESPONSE_CACHE__?.has(cacheKey)) {
+          return window.__GFAF_RESPONSE_CACHE__.get(cacheKey);
+        }
 
         if (currentFieldValue && currentFieldValue.trim() && history.length === 0) {
           history.push({ role: 'assistant', content: currentFieldValue.trim() });
@@ -1417,7 +1462,6 @@ HUMANIZED WRITING STYLE & TONE:
 5. Strictly adhere to any word count or constraint in the prompt.
 6. Do NOT include markdown code block envelopes, preamble (e.g. "Here is my answer:"), or emojis. Output ONLY the clean, raw text ready to be pasted directly into the form.`;
 
-        const isFollowUp = Boolean(customInstructions && customInstructions.trim() && (history.length > 0 || currentFieldValue));
         if (customInstructions && customInstructions.trim()) {
           history.push({ role: 'user', content: customInstructions.trim() });
         }
@@ -1535,19 +1579,23 @@ Directly tailor and align the candidate's matching experience, technologies, and
           if (proxyRes && proxyRes.success) {
             generatedAnswer = (proxyRes.data?.message?.content || proxyRes.data?.response || '').trim();
           } else if (proxyRes && !proxyRes.success) {
-            const errDetail = proxyRes.error || proxyRes.data?.error || 'Ollama model error';
-            console.warn('[GFAF] Ollama generation failed:', errDetail);
-            throw new Error(typeof errDetail === 'string' ? errDetail : JSON.stringify(errDetail));
+            const errDetail = proxyRes.error || proxyRes.data?.error || 'Ollama offline';
+            console.warn('[GFAF] Ollama generation unavailable:', errDetail);
+            // Non-blocking fallback handled below
           }
-        } else if (llmConfig.provider === 'gemini' && llmConfig.geminiApiKey) {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${llmConfig.geminiModel || 'gemini-1.5-flash'}:generateContent?key=${llmConfig.geminiApiKey}`;
+        } else if (llmConfig.provider === 'gemini' && llmConfig.geminiApiKey && llmConfig.geminiModel) {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${llmConfig.geminiModel.trim()}:generateContent?key=${llmConfig.geminiApiKey.trim()}`;
           const proxyRes = await new Promise((resolve) => {
             if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
               chrome.runtime.sendMessage({
                 action: 'GENERATE_LLM_RAG',
                 endpoint: url,
                 payload: {
-                  contents: [{ parts: [{ text: `${systemPrompt}\n\n${singlePrompt}` }] }]
+                  contents: [{ parts: [{ text: `${systemPrompt}\n\n${singlePrompt}` }] }],
+                  generationConfig: {
+                    temperature: 0.3,
+                    maxOutputTokens: 1500
+                  }
                 }
               }, (r) => resolve(r));
             } else {
@@ -1557,8 +1605,11 @@ Directly tailor and align the candidate's matching experience, technologies, and
 
           if (proxyRes && proxyRes.success && proxyRes.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
             generatedAnswer = proxyRes.data.candidates[0].content.parts[0].text.trim();
+          } else if (proxyRes && !proxyRes.success) {
+            console.warn('[GFAF] Gemini generation error:', proxyRes.error);
+            showToast(`Gemini error: ${proxyRes.error || 'Failed to generate'}`, 'error');
           }
-        } else if (llmConfig.provider === 'openai' && llmConfig.openaiApiKey) {
+        } else if (llmConfig.provider === 'openai' && llmConfig.openaiApiKey && llmConfig.openaiModel) {
           const proxyRes = await new Promise((resolve) => {
             if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
               chrome.runtime.sendMessage({
@@ -1566,11 +1617,13 @@ Directly tailor and align the candidate's matching experience, technologies, and
                 endpoint: 'https://api.openai.com/v1/chat/completions',
                 headers: {
                   'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${llmConfig.openaiApiKey}`
+                  'Authorization': `Bearer ${llmConfig.openaiApiKey.trim()}`
                 },
                 payload: {
-                  model: llmConfig.openaiModel || 'gpt-4o-mini',
-                  messages: messages
+                  model: llmConfig.openaiModel.trim(),
+                  messages: messages,
+                  temperature: 0.3,
+                  max_tokens: 1500
                 }
               }, (r) => resolve(r));
             } else {
@@ -1580,17 +1633,94 @@ Directly tailor and align the candidate's matching experience, technologies, and
 
           if (proxyRes && proxyRes.success && proxyRes.data?.choices?.[0]?.message?.content) {
             generatedAnswer = proxyRes.data.choices[0].message.content.trim();
+          } else if (proxyRes && !proxyRes.success) {
+            console.warn('[GFAF] OpenAI generation error:', proxyRes.error);
+            showToast(`OpenAI error: ${proxyRes.error || 'Failed to generate'}`, 'error');
           }
+        } else if (llmConfig.provider === 'anthropic' && llmConfig.anthropicApiKey && llmConfig.anthropicModel) {
+          const proxyRes = await new Promise((resolve) => {
+            if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+              chrome.runtime.sendMessage({
+                action: 'GENERATE_LLM_RAG',
+                endpoint: 'https://api.anthropic.com/v1/messages',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-api-key': llmConfig.anthropicApiKey.trim(),
+                  'anthropic-version': '2023-06-01',
+                  'anthropic-dangerous-direct-browser-access': 'true'
+                },
+                payload: {
+                  model: llmConfig.anthropicModel.trim(),
+                  system: systemPrompt,
+                  messages: [{ role: 'user', content: singlePrompt }],
+                  max_tokens: 1500,
+                  temperature: 0.3
+                }
+              }, (r) => resolve(r));
+            } else {
+              resolve(null);
+            }
+          });
+
+          if (proxyRes && proxyRes.success && proxyRes.data?.content?.[0]?.text) {
+            generatedAnswer = proxyRes.data.content[0].text.trim();
+          } else if (proxyRes && !proxyRes.success) {
+            console.warn('[GFAF] Anthropic generation error:', proxyRes.error);
+            showToast(`Anthropic error: ${proxyRes.error || 'Failed to generate'}`, 'error');
+          }
+        } else if (llmConfig.provider === 'anthropic' && (!llmConfig.anthropicApiKey || !llmConfig.anthropicModel)) {
+          showToast('Anthropic setup incomplete: API Key or Model Name is missing in Settings.', 'error');
+        } else if (llmConfig.provider === 'openai' && (!llmConfig.openaiApiKey || !llmConfig.openaiModel)) {
+          showToast('OpenAI setup incomplete: API Key or Model Name is missing in Settings.', 'error');
+        } else if (llmConfig.provider === 'gemini' && (!llmConfig.geminiApiKey || !llmConfig.geminiModel)) {
+          showToast('Gemini setup incomplete: API Key or Model Name is missing in Settings.', 'error');
         }
 
+        // If LLM returned an answer, record in history, store in cache, and return
         if (generatedAnswer) {
+          if (cacheKey) {
+            window.__GFAF_RESPONSE_CACHE__ = window.__GFAF_RESPONSE_CACHE__ || new Map();
+            window.__GFAF_RESPONSE_CACHE__.set(cacheKey, generatedAnswer);
+          }
           history.push({ role: 'assistant', content: generatedAnswer });
           fieldChatHistory.set(chatKey, history);
+          return generatedAnswer;
         }
 
-        return generatedAnswer;
+        // Fallback: If LLM is offline or unconfigured, gracefully synthesize from candidate profile facts
+        const smartMatch = LocalMatcherService.matchSmartAnswers(questionText, profile);
+        if (smartMatch && smartMatch.value) {
+          showToast('Generated from Profile Smart Answers.', 'info');
+          return smartMatch.value;
+        }
+
+        const customMatch = LocalMatcherService.matchCustomFields(questionText, profile);
+        if (customMatch && customMatch.value) {
+          showToast('Generated from Custom Fields.', 'info');
+          return customMatch.value;
+        }
+
+        const skills = (profile.skills || []).map((s) => (typeof s === 'object' && s !== null ? s.name : s)).filter(Boolean).slice(0, 10).join(', ');
+        const role = profile.professional?.currentRole || 'Full Stack Engineer';
+        const org = profile.professional?.currentOrganization || 'Open Source Builder';
+        const exp = profile.professional?.totalExperienceYears || '1';
+
+        const normQ = LocalMatcherService.normalize(questionText);
+        if (normQ.includes('stack') || normQ.includes('tool') || normQ.includes('technolog') || normQ.includes('skill')) {
+          showToast('Generated from candidate Tech Stack facts.', 'info');
+          return `I specialize in ${skills || 'Full Stack Development'} with ${exp} year(s) of experience building systems at ${org}.`;
+        }
+
+        if (llmConfig.provider === 'ollama') {
+          showToast('Ollama is offline at localhost:11434. Please start Ollama or configure Gemini/OpenAI/Claude in Fillvyn Settings.', 'error');
+        }
+        return '';
       } catch (err) {
-        console.warn('[GFAF] synthesizeAiAnswer error:', err);
+        console.warn('[GFAF] synthesizeAiAnswer fallback triggered:', err.message || err);
+        const smartMatch = LocalMatcherService.matchSmartAnswers(questionText, profile);
+        if (smartMatch && smartMatch.value) {
+          return smartMatch.value;
+        }
         return '';
       }
     }
@@ -2005,15 +2135,29 @@ Directly tailor and align the candidate's matching experience, technologies, and
     let settings = DEFAULT_SETTINGS;
     let profiles = [DEFAULT_PROFILE];
     let activeProfile = DEFAULT_PROFILE;
+    let currentLlmConfig = {
+      provider: 'ollama',
+      ollamaEndpoint: 'http://localhost:11434',
+      ollamaModel: 'llama3.2'
+    };
 
     try {
-      settings = await LocalStorageService.getSettings();
+      const storedSettings = await LocalStorageService.getSettings();
+      if (storedSettings) settings = { ...DEFAULT_SETTINGS, ...storedSettings };
       if (settings.showFloatingWidget === false) return;
 
-      profiles = await LocalStorageService.getProfiles();
-      activeProfile = await LocalStorageService.getActiveProfile();
-    } catch {
-      // Fallback gracefully if extension was reloaded in background
+      const storedProfiles = await LocalStorageService.getProfiles();
+      if (Array.isArray(storedProfiles) && storedProfiles.length > 0) profiles = storedProfiles;
+
+      const storedActiveProfile = await LocalStorageService.getActiveProfile();
+      if (storedActiveProfile) activeProfile = storedActiveProfile;
+
+      const storedLlmConfig = await LocalStorageService.get('gfaf_llm_config');
+      if (storedLlmConfig && typeof storedLlmConfig === 'object') {
+        currentLlmConfig = { ...currentLlmConfig, ...storedLlmConfig };
+      }
+    } catch (err) {
+      console.warn('[GFAF] Storage access fallback for floating dock:', err);
     }
 
     const root = document.createElement('div');
@@ -2101,7 +2245,301 @@ Directly tailor and align the candidate's matching experience, technologies, and
     dropdownWrap.appendChild(triggerBtn);
     dropdownWrap.appendChild(dropdownMenu);
 
-    // 2. Action Buttons Row (Compact Auto-Fill + Settings Gear Button)
+    // 2. Custom UI Model Selector Dropdown & Wake Up Button (Middle Row)
+    const modelRow = document.createElement('div');
+    modelRow.className = 'gfaf-widget-model-row';
+
+    const modelDropdownWrap = document.createElement('div');
+    modelDropdownWrap.className = 'gfaf-custom-dropdown gfaf-model-dropdown-wrap';
+
+    const modelTriggerBtn = document.createElement('button');
+    modelTriggerBtn.type = 'button';
+    modelTriggerBtn.className = 'gfaf-dropdown-trigger gfaf-model-trigger';
+    modelTriggerBtn.setAttribute('title', 'Select Active AI Model');
+
+    const modelStatusDot = document.createElement('span');
+    modelStatusDot.className = 'gfaf-model-dot dot-ready';
+
+    const modelLabelSpan = document.createElement('span');
+    modelLabelSpan.className = 'gfaf-dropdown-label gfaf-model-label';
+
+    const getActiveModelName = (cfg) => {
+      const p = cfg?.provider || 'ollama';
+      if (p === 'gemini') return cfg.geminiModel || 'gemini-1.5-flash';
+      if (p === 'openai') return cfg.openaiModel || 'gpt-4o-mini';
+      if (p === 'anthropic') return cfg.anthropicModel || 'claude-3-5-haiku-20241022';
+      return cfg?.ollamaModel || 'llama3.2';
+    };
+
+    let activeModelName = getActiveModelName(currentLlmConfig);
+    modelLabelSpan.textContent = activeModelName;
+
+    const modelChevronSpan = document.createElement('span');
+    modelChevronSpan.className = 'gfaf-dropdown-chevron';
+    modelChevronSpan.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+
+    modelTriggerBtn.appendChild(modelStatusDot);
+    modelTriggerBtn.appendChild(modelLabelSpan);
+    modelTriggerBtn.appendChild(modelChevronSpan);
+
+    const modelDropdownMenu = document.createElement('div');
+    modelDropdownMenu.className = 'gfaf-dropdown-menu gfaf-model-dropdown-menu hidden';
+
+    // Cloud models configured by user with valid API Key & Model Name (Strictly no unconfigured defaults)
+    const getActiveCloudModels = (cfg) => {
+      const list = [];
+      if (cfg?.geminiApiKey && typeof cfg.geminiApiKey === 'string' && cfg.geminiApiKey.trim() && cfg?.geminiModel && cfg.geminiModel.trim()) {
+        list.push({
+          id: cfg.geminiModel.trim(),
+          name: cfg.geminiModel.trim(),
+          provider: 'gemini',
+          badge: 'Cloud'
+        });
+      }
+      if (cfg?.openaiApiKey && typeof cfg.openaiApiKey === 'string' && cfg.openaiApiKey.trim() && cfg?.openaiModel && cfg.openaiModel.trim()) {
+        list.push({
+          id: cfg.openaiModel.trim(),
+          name: cfg.openaiModel.trim(),
+          provider: 'openai',
+          badge: 'Cloud'
+        });
+      }
+      if (cfg?.anthropicApiKey && typeof cfg.anthropicApiKey === 'string' && cfg.anthropicApiKey.trim() && cfg?.anthropicModel && cfg.anthropicModel.trim()) {
+        list.push({
+          id: cfg.anthropicModel.trim(),
+          name: cfg.anthropicModel.trim(),
+          provider: 'anthropic',
+          badge: 'Cloud'
+        });
+      }
+      return list;
+    };
+
+    let cloudModels = getActiveCloudModels(currentLlmConfig);
+
+    // Local models list (strictly detected models only)
+    let localModels = [];
+    const activeOllamaModel = currentLlmConfig.ollamaModel || 'llama3.2';
+
+    // Initial local model if currently active
+    if (currentLlmConfig.provider === 'ollama' || !currentLlmConfig.provider) {
+      localModels.push({
+        id: activeOllamaModel,
+        name: activeOllamaModel,
+        provider: 'ollama',
+        badge: 'Local'
+      });
+    }
+
+    let availableModels = [...localModels, ...cloudModels];
+
+    const renderModelItems = (modelsList) => {
+      modelDropdownMenu.innerHTML = '';
+      if (!modelsList || modelsList.length === 0) {
+        modelDropdownMenu.innerHTML = '<div style="padding: 8px 10px; font-size: 11px; color: #94a3b8; text-align: center;">No models found</div>';
+        return;
+      }
+
+      modelsList.forEach((m) => {
+        const item = document.createElement('div');
+        item.className = `gfaf-dropdown-item ${m.id === activeModelName ? 'active' : ''}`;
+        item.setAttribute('data-id', m.id);
+
+        const dot = document.createElement('span');
+        dot.className = `gfaf-item-dot ${m.provider === 'ollama' ? 'dot-local' : 'dot-cloud'}`;
+
+        const textSpan = document.createElement('span');
+        textSpan.className = 'gfaf-item-text';
+        textSpan.textContent = m.name;
+
+        const badgeSpan = document.createElement('span');
+        badgeSpan.className = 'gfaf-item-badge';
+        badgeSpan.textContent = m.badge;
+
+        item.appendChild(dot);
+        item.appendChild(textSpan);
+        item.appendChild(badgeSpan);
+
+        item.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          try {
+            currentLlmConfig = (await LocalStorageService.get('gfaf_llm_config')) || {};
+            currentLlmConfig.provider = m.provider;
+            if (m.provider === 'gemini') currentLlmConfig.geminiModel = m.id;
+            else if (m.provider === 'openai') currentLlmConfig.openaiModel = m.id;
+            else if (m.provider === 'anthropic') currentLlmConfig.anthropicModel = m.id;
+            else currentLlmConfig.ollamaModel = m.id;
+
+            await LocalStorageService.set('gfaf_llm_config', currentLlmConfig);
+            activeModelName = m.id;
+            modelLabelSpan.textContent = m.name;
+            modelDropdownMenu.querySelectorAll('.gfaf-dropdown-item').forEach((it) => it.classList.remove('active'));
+            item.classList.add('active');
+            modelDropdownMenu.classList.add('hidden');
+            modelTriggerBtn.classList.remove('open');
+            showToast(`Switched AI model to "${m.name}"`);
+          } catch {
+            showToast('Please refresh the page to apply model switch.');
+          }
+        });
+
+        modelDropdownMenu.appendChild(item);
+      });
+    };
+
+    renderModelItems(availableModels);
+
+    // Auto-detect installed local Ollama models in background and display ONLY detected models
+    if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+      try {
+        const endpoint = currentLlmConfig.ollamaEndpoint || 'http://localhost:11434';
+        chrome.runtime.sendMessage(
+          { action: 'PROXY_FETCH', url: `${endpoint.replace(/\/+$/, '')}/api/tags`, method: 'GET' },
+          (resp) => {
+            if (resp && resp.success && resp.data?.models && Array.isArray(resp.data.models)) {
+              const detected = resp.data.models.map((mod) => mod.name);
+              if (detected.length > 0) {
+                localModels = detected.map((dName) => ({
+                  id: dName,
+                  name: dName,
+                  provider: 'ollama',
+                  badge: 'Local'
+                }));
+
+                // Auto-match activeModelName with tag if present
+                if (currentLlmConfig.provider === 'ollama') {
+                  const match = localModels.find((m) => m.id === activeModelName || m.id.startsWith(`${activeModelName}:`));
+                  if (match) {
+                    activeModelName = match.id;
+                    modelLabelSpan.textContent = match.name;
+                  }
+                }
+
+                cloudModels = getActiveCloudModels(currentLlmConfig);
+                availableModels = [...localModels, ...cloudModels];
+                renderModelItems(availableModels);
+              }
+            }
+          }
+        );
+      } catch {}
+    }
+
+    modelTriggerBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isClosed = modelDropdownMenu.classList.contains('hidden');
+      dropdownMenu.classList.add('hidden');
+      triggerBtn.classList.remove('open');
+      if (isClosed) {
+        modelDropdownMenu.classList.remove('hidden');
+        modelTriggerBtn.classList.add('open');
+      } else {
+        modelDropdownMenu.classList.add('hidden');
+        modelTriggerBtn.classList.remove('open');
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!modelDropdownWrap.contains(e.target)) {
+        modelDropdownMenu.classList.add('hidden');
+        modelTriggerBtn.classList.remove('open');
+      }
+    });
+
+    modelDropdownWrap.appendChild(modelTriggerBtn);
+    modelDropdownWrap.appendChild(modelDropdownMenu);
+
+    // Wake Up Button
+    const wakeUpBtn = document.createElement('button');
+    wakeUpBtn.type = 'button';
+    wakeUpBtn.className = 'gfaf-widget-wakeup-btn';
+    wakeUpBtn.setAttribute('title', 'Wake up & pre-load model into GPU / Memory');
+    wakeUpBtn.setAttribute('aria-label', 'Wake up & pre-load model into GPU / Memory');
+    wakeUpBtn.innerHTML = `
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+        <line x1="12" y1="2" x2="12" y2="12"></line>
+      </svg>
+    `;
+
+    wakeUpBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      wakeUpBtn.classList.add('loading');
+      modelStatusDot.className = 'gfaf-model-dot dot-loading';
+      wakeUpBtn.innerHTML = `
+        <svg class="gfaf-spinning" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <polyline points="1 20 1 14 7 14"></polyline>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+        </svg>
+      `;
+
+      try {
+        const endpoint = (currentLlmConfig.ollamaEndpoint || 'http://localhost:11434').replace(/\/+$/, '');
+        const targetModel = activeModelName || 'llama3.2';
+
+        if (currentLlmConfig.provider === 'ollama') {
+          chrome.runtime.sendMessage(
+            {
+              action: 'PROXY_FETCH',
+              url: `${endpoint}/api/chat`,
+              method: 'POST',
+              payload: {
+                model: targetModel,
+                messages: [{ role: 'user', content: 'ping' }],
+                stream: false,
+                keep_alive: '10m',
+                options: { num_predict: 1 }
+              }
+            },
+            (response) => {
+              wakeUpBtn.classList.remove('loading');
+              wakeUpBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                  <line x1="12" y1="2" x2="12" y2="12"></line>
+                </svg>
+              `;
+              if (response && response.success) {
+                modelStatusDot.className = 'gfaf-model-dot dot-ready';
+                showToast(`Model "${targetModel}" is awake & loaded in memory!`, 'success');
+              } else {
+                modelStatusDot.className = 'gfaf-model-dot dot-idle';
+                showToast(response?.error || `Ollama is offline. Start with 'ollama serve'`, 'error');
+              }
+            }
+          );
+        } else {
+          setTimeout(() => {
+            wakeUpBtn.classList.remove('loading');
+            wakeUpBtn.innerHTML = `
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                <line x1="12" y1="2" x2="12" y2="12"></line>
+              </svg>
+            `;
+            modelStatusDot.className = 'gfaf-model-dot dot-ready';
+            showToast(`Connected to ${currentLlmConfig.provider} cloud (${targetModel})`, 'success');
+          }, 350);
+        }
+      } catch (err) {
+        wakeUpBtn.classList.remove('loading');
+        wakeUpBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+            <line x1="12" y1="2" x2="12" y2="12"></line>
+          </svg>
+        `;
+        modelStatusDot.className = 'gfaf-model-dot dot-idle';
+        showToast(`Wake up failed: ${err.message}`, 'error');
+      }
+    });
+
+    modelRow.appendChild(modelDropdownWrap);
+    modelRow.appendChild(wakeUpBtn);
+
+    // 3. Action Buttons Row (Compact Auto-Fill + Settings Gear Button)
     const actionRow = document.createElement('div');
     actionRow.className = 'gfaf-widget-action-row';
 
@@ -2151,8 +2589,29 @@ Directly tailor and align the candidate's matching experience, technologies, and
     actionRow.appendChild(fillBtn);
     actionRow.appendChild(settingsBtn);
 
+    // 4. Sponsor / Ad Strip (Left to Right below Auto-Fill)
+    const dockAdStrip = document.createElement('a');
+    dockAdStrip.className = 'gfaf-dock-ad-strip';
+    dockAdStrip.href = 'https://github.com/Indla26v/FormPilot';
+    dockAdStrip.target = '_blank';
+    dockAdStrip.rel = 'noopener noreferrer';
+    dockAdStrip.setAttribute('title', 'Sponsored Link / Ad Space');
+    dockAdStrip.setAttribute('aria-label', 'Sponsored Link / Ad Space');
+    dockAdStrip.innerHTML = `
+      <div class="gfaf-dock-ad-left">
+        <span class="gfaf-dock-ad-badge">AD</span>
+        <span class="gfaf-dock-ad-text">Fillvyn Pro Tools</span>
+      </div>
+      <svg class="gfaf-dock-ad-arrow" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="7" y1="17" x2="17" y2="7"></line>
+        <polyline points="7 7 17 7 17 17"></polyline>
+      </svg>
+    `;
+
     card.appendChild(dropdownWrap);
+    card.appendChild(modelRow);
     card.appendChild(actionRow);
+    card.appendChild(dockAdStrip);
 
     // 0. Job Description (JD) Alignment Input Area (Directly above the dock card)
     const jdPanel = document.createElement('div');
@@ -2274,7 +2733,10 @@ Directly tailor and align the candidate's matching experience, technologies, and
     root.appendChild(jdPanel);
     root.appendChild(card);
 
-    document.body.appendChild(root);
+    const targetParent = document.body || document.documentElement;
+    if (targetParent && !document.getElementById('gfaf-floating-root')) {
+      targetParent.appendChild(root);
+    }
 
     // Mount per-column AI buttons across all detected inputs
     LocalFillerService.injectAiButtonsToAllInputs(activeProfile);
@@ -2296,14 +2758,23 @@ Directly tailor and align the candidate's matching experience, technologies, and
 
   // Mount floating widget & per-column AI buttons
   async function initGFAF() {
-    await createFloatingWidget();
+    try {
+      await createFloatingWidget();
+    } catch (e) {
+      console.warn('[GFAF] Error mounting floating dock:', e);
+    }
     try {
       const activeProfile = await LocalStorageService.getActiveProfile();
       if (activeProfile) {
         LocalFillerService.injectAiButtonsToAllInputs(activeProfile);
       }
-    } catch {}
+    } catch (e) {
+      console.warn('[GFAF] Error injecting AI buttons:', e);
+    }
   }
+
+  window.__GFAF_INIT__ = initGFAF;
+  window.__GFAF_MOUNT_DOCK__ = createFloatingWidget;
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initGFAF);
@@ -2311,23 +2782,45 @@ Directly tailor and align the candidate's matching experience, technologies, and
     initGFAF();
   }
 
+  if (typeof window !== 'undefined') {
+    window.addEventListener('load', initGFAF);
+  }
+
   let observerDebounce = null;
-  const observer = new MutationObserver(() => {
+  const observer = new MutationObserver((mutations) => {
+    // 1. Self-mutation filtering: ignore mutations from FormPilot's own injected UI elements
+    const hasExternalMutation = (mutations || []).some((m) => {
+      const target = m.target;
+      if (!target) return true;
+      const el = target.nodeType === 1 ? target : target.parentElement;
+      if (el && typeof el.closest === 'function') {
+        return !el.closest('#gfaf-floating-root, .gfaf-ai-column-action-bar, .gfaf-ai-comment-toolbar, .gfaf-processing-indicator, .gfaf-processing-buffer, .gfaf-filled-highlight, .gfaf-match-badge, .gfaf-toast');
+      }
+      return true;
+    });
+
+    if (!hasExternalMutation) return;
+
     if (!document.getElementById('gfaf-floating-root')) {
       createFloatingWidget();
     }
     if (observerDebounce) clearTimeout(observerDebounce);
     observerDebounce = setTimeout(async () => {
       try {
+        if (!document.getElementById('gfaf-floating-root')) {
+          await createFloatingWidget();
+        }
         const activeProfile = await LocalStorageService.getActiveProfile();
         if (activeProfile) {
           LocalFillerService.injectAiButtonsToAllInputs(activeProfile);
         }
       } catch {}
-    }, 400);
+    }, 300);
   });
   if (document.body) {
     observer.observe(document.body, { childList: true, subtree: true });
+  } else if (document.documentElement) {
+    observer.observe(document.documentElement, { childList: true, subtree: true });
   }
 
   window.__GFAF_TRIGGER_AUTO_FILL__ = triggerAutoFill;

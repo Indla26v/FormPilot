@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FormPilot - Candidate Profile & Form Filler Settings</title>
+  <title>Fillvyn - Candidate Profile & Form Filler Settings</title>
   <link rel="stylesheet" href="options.css" />
 </head>
 <body>
@@ -13,79 +13,120 @@
       <div class="sidebar-brand">
         <div class="brand-badge" id="brand-badge-icon"></div>
         <div class="brand-text">
-          <h1 class="app-title">FormPilot</h1>
+          <h1 class="app-title">Fillvyn</h1>
           <span class="app-sub">Profile Manager</span>
-        </div>
-      </div>
-
-      <!-- Profile Selector Card in Sidebar -->
-      <div class="sidebar-profile-box">
-        <div class="sidebar-profile-header">
-          <label class="sidebar-label" for="active-profile-select">Active Profile</label>
-          <button type="button" class="sidebar-edit-link" id="btn-rename-profile" title="Rename this profile">
-            <span class="btn-icon" id="icon-rename-profile"></span>
-            <span>Edit</span>
-          </button>
-        </div>
-        <select class="pill-select" id="active-profile-select"></select>
-        <div class="profile-actions-row">
-          <button type="button" class="pill-btn-small pill-btn-ghost flex-1" id="btn-duplicate-profile" title="Duplicate this profile">
-            <span class="btn-icon" id="icon-duplicate"></span>
-            <span>Clone</span>
-          </button>
-          <button type="button" class="pill-btn-small pill-btn-ghost flex-1" id="btn-new-profile" title="Create a new profile">
-            <span class="btn-icon" id="icon-new-profile"></span>
-            <span>New</span>
-          </button>
-          <button type="button" class="pill-btn-small pill-btn-danger-ghost" id="btn-delete-profile" title="Delete this profile">
-            <span class="btn-icon" id="icon-delete-profile"></span>
-          </button>
         </div>
       </div>
 
       <!-- Navigation Tabs -->
       <nav class="nav-menu">
+        <!-- 1. Candidate Info Section -->
+        <div class="nav-section-header">
+          <span class="nav-section-title">Candidate Info</span>
+        </div>
         <button type="button" class="nav-item active" data-tab="tab-personal">
           <span class="nav-icon" id="nav-icon-personal"></span>
-          <span>Personal Details</span>
+          <span class="nav-item-text">Personal Details</span>
         </button>
         <button type="button" class="nav-item" data-tab="tab-education">
           <span class="nav-icon" id="nav-icon-education"></span>
-          <span>Education & Marks</span>
+          <span class="nav-item-text">Education & Marks</span>
         </button>
         <button type="button" class="nav-item" data-tab="tab-experience">
           <span class="nav-icon" id="nav-icon-experience"></span>
-          <span>Experience & CTC</span>
+          <span class="nav-item-text">Experience & CTC</span>
+        </button>
+
+        <!-- 2. Role Profiles Section -->
+        <div class="nav-section-header">
+          <span class="nav-section-title">Role Profiles</span>
+        </div>
+        
+        <!-- Profile Selector Card in Sidebar -->
+        <div class="sidebar-profile-box">
+          <div class="sidebar-profile-header">
+            <label class="sidebar-label" for="active-profile-select">Active Role Profile</label>
+            <button type="button" class="sidebar-edit-link" id="btn-rename-profile" title="Rename this profile">
+              <span class="btn-icon" id="icon-rename-profile"></span>
+              <span>Edit</span>
+            </button>
+          </div>
+          <!-- Custom Glassmorphic Dropdown for Role Profiles -->
+          <div class="custom-select-wrapper sidebar-custom-dropdown" id="wrapper-active-profile">
+            <button type="button" class="custom-select-trigger" id="trigger-active-profile" aria-haspopup="listbox" aria-expanded="false">
+              <div class="custom-select-model-info">
+                <span class="custom-select-dot dot-detected"></span>
+                <span class="custom-select-text" id="text-active-profile">Loading...</span>
+              </div>
+              <svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <div class="custom-select-dropdown sidebar-profile-dropdown-list" id="dropdown-active-profile" role="listbox"></div>
+            <input type="hidden" id="active-profile-select" value="" />
+          </div>
+          <div class="profile-actions-row">
+            <button type="button" class="pill-btn-small pill-btn-ghost flex-1" id="btn-duplicate-profile" title="Duplicate this profile">
+              <span class="btn-icon" id="icon-duplicate"></span>
+              <span>Clone</span>
+            </button>
+            <button type="button" class="pill-btn-small pill-btn-ghost flex-1" id="btn-new-profile" title="Create a new profile">
+              <span class="btn-icon" id="icon-new-profile"></span>
+              <span>New</span>
+            </button>
+            <button type="button" class="pill-btn-small pill-btn-danger-ghost" id="btn-delete-profile" title="Delete this profile">
+              <span class="btn-icon" id="icon-delete-profile"></span>
+            </button>
+          </div>
+        </div>
+
+        <button type="button" class="nav-item" data-tab="tab-skills">
+          <span class="nav-icon" id="nav-icon-skills"></span>
+          <span class="nav-item-text">Skills & Tech Stack</span>
         </button>
         <button type="button" class="nav-item" data-tab="tab-links">
           <span class="nav-icon" id="nav-icon-links"></span>
-          <span>Links & Portfolio</span>
-        </button>
-        <button type="button" class="nav-item" data-tab="tab-skills">
-          <span class="nav-icon" id="nav-icon-skills"></span>
-          <span>Skills & Tech Stack</span>
+          <span class="nav-item-text">Links & Portfolio</span>
         </button>
         <button type="button" class="nav-item" data-tab="tab-rag">
           <span class="nav-icon" id="nav-icon-rag"></span>
-          <span>Knowledge Base (RAG)</span>
-        </button>
-        <button type="button" class="nav-item" data-tab="tab-llm">
-          <span class="nav-icon" id="nav-icon-llm"></span>
-          <span>AI & Local LLM Setup</span>
+          <span class="nav-item-text">Knowledge Base (RAG)</span>
         </button>
         <button type="button" class="nav-item" data-tab="tab-custom">
           <span class="nav-icon" id="nav-icon-custom"></span>
-          <span>Custom Fields</span>
+          <span class="nav-item-text">Custom Fields</span>
+        </button>
+
+        <!-- 3. System & AI Section -->
+        <div class="nav-section-header">
+          <span class="nav-section-title">System & AI</span>
+        </div>
+        <button type="button" class="nav-item" data-tab="tab-llm">
+          <span class="nav-icon" id="nav-icon-llm"></span>
+          <span class="nav-item-text">AI & Local LLM Setup</span>
         </button>
         <button type="button" class="nav-item" data-tab="tab-settings">
           <span class="nav-icon" id="nav-icon-settings"></span>
-          <span>Settings & Backup</span>
+          <span class="nav-item-text">Settings & Backup</span>
         </button>
       </nav>
 
-      <!-- Sidebar Footer -->
+      <!-- Sidebar Dedicated Ad Slot -->
       <div class="sidebar-footer">
-        <span class="version-tag">Version 1.0.1</span>
+        <div class="sidebar-ad-card" id="sidebar-ad-slot">
+          <div class="sidebar-ad-top">
+            <span class="ad-pill-badge">SPONSORED</span>
+            <svg class="ad-external-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+          </div>
+          <div class="sidebar-ad-body">
+            <div class="sidebar-ad-title">Ad Space Available</div>
+            <div class="sidebar-ad-desc">Reach 10,000+ active software engineers & applicants daily</div>
+          </div>
+        </div>
       </div>
     </aside>
 
@@ -104,6 +145,26 @@
           </button>
         </div>
       </header>
+
+      <!-- Long Strip Just Below the Heading Columns (Top Side Ad Banner) -->
+      <div class="top-banner-ad-strip" id="top-banner-ad-slot">
+        <div class="top-ad-left">
+          <span class="ad-pill-badge">PROMOTED</span>
+          <div class="top-ad-text">
+            <span class="top-ad-headline">Level up your technical job search with AI mock interviews &amp; ATS alignment.</span>
+            <span class="top-ad-subtext">Unlock premium dev career toolkits, verified skills badges, and fast-track candidate referrals.</span>
+          </div>
+        </div>
+        <div class="top-ad-right">
+          <a href="https://github.com/Indla26v/FormPilot" target="_blank" rel="noopener noreferrer" class="pill-btn pill-btn-ad-sm">
+            <span>Explore</span>
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="7" y1="17" x2="17" y2="7"></line>
+              <polyline points="7 7 17 7 17 17"></polyline>
+            </svg>
+          </a>
+        </div>
+      </div>
 
       <!-- Form Container -->
       <form id="profile-form" class="content-scroll">
@@ -453,7 +514,7 @@
                   <span class="provider-name">Google Gemini</span>
                   <span class="provider-badge badge-cloud">Cloud API</span>
                 </div>
-                <p class="provider-desc">Ultra-fast generation using gemini-1.5-flash with high token capacity.</p>
+                <p class="provider-desc">Ultra-fast generation with high token capacity via Google AI Studio.</p>
               </label>
 
               <label class="provider-radio-card" for="provider-radio-openai" data-provider="openai">
@@ -462,7 +523,7 @@
                   <span class="provider-name">OpenAI</span>
                   <span class="provider-badge badge-cloud">Cloud API</span>
                 </div>
-                <p class="provider-desc">Industry-standard GPT-4o-mini with high quality synthesis.</p>
+                <p class="provider-desc">High-quality synthesis and reasoning via OpenAI Platform.</p>
               </label>
 
               <label class="provider-radio-card" for="provider-radio-anthropic" data-provider="anthropic">
@@ -471,7 +532,7 @@
                   <span class="provider-name">Anthropic Claude</span>
                   <span class="provider-badge badge-cloud">Cloud API</span>
                 </div>
-                <p class="provider-desc">Claude 3.5 Haiku with human-like nuance and concise technical phrasing.</p>
+                <p class="provider-desc">Human-like nuance and concise phrasing via Anthropic Console.</p>
               </label>
             </div>
           </div>
@@ -518,8 +579,54 @@
               </div>
 
               <div class="callout-info">
-                <div class="callout-title">Windows Ollama Quick Setup Tip:</div>
-                <p class="callout-text">To allow Chrome extensions to access Ollama, ensure your Windows environment variable <code>OLLAMA_ORIGINS</code> is set to <code>*</code>, then restart Ollama.</p>
+                <div class="callout-header-row">
+                  <div class="callout-title">How to Set Environment Variable (<code>OLLAMA_ORIGINS = *</code>):</div>
+                  <div class="os-pills-switcher">
+                    <button type="button" class="os-pill-btn active" data-os="windows">Windows</button>
+                    <button type="button" class="os-pill-btn" data-os="mac">macOS</button>
+                    <button type="button" class="os-pill-btn" data-os="linux">Linux</button>
+                  </div>
+                </div>
+
+                <!-- Windows Tab -->
+                <div class="os-tab-content active" id="os-tab-windows">
+                  <ol class="setup-steps-list">
+                    <li>Press <kbd>Win + R</kbd>, type <code>sysdm.cpl</code>, and press <strong>Enter</strong> (or search for <em>"Edit the system environment variables"</em> in the Start Menu).</li>
+                    <li>Go to the <strong>Advanced</strong> tab and click <strong>Environment Variables...</strong> at the bottom.</li>
+                    <li>Under <strong>User variables</strong> (or <em>System variables</em>), click <strong>New...</strong></li>
+                    <li>Set <strong>Variable name:</strong> <code>OLLAMA_ORIGINS</code> and <strong>Variable value:</strong> <code>*</code></li>
+                    <li>Click <strong>OK</strong> on all dialogs, right-click the <strong>Ollama icon</strong> in the Windows taskbar tray & select <strong>Quit Ollama</strong>, then restart Ollama.</li>
+                  </ol>
+                  <div class="callout-powershell-tip">
+                    <span>PowerShell 1-Click Command (Run in Terminal):</span>
+                    <code>[System.Environment]::SetEnvironmentVariable('OLLAMA_ORIGINS', '*', 'User')</code>
+                  </div>
+                </div>
+
+                <!-- macOS Tab -->
+                <div class="os-tab-content" id="os-tab-mac">
+                  <ol class="setup-steps-list">
+                    <li>Open <strong>Terminal</strong> and run the command below to set the variable for the Ollama macOS GUI app and shell profile.</li>
+                    <li>Quit <strong>Ollama</strong> from the top menu bar icon, and relaunch it from Applications.</li>
+                  </ol>
+                  <div class="callout-powershell-tip">
+                    <span>Terminal 1-Click Command (Run in Terminal):</span>
+                    <code>launchctl setenv OLLAMA_ORIGINS "*" && echo 'export OLLAMA_ORIGINS="*"' >> ~/.zshrc</code>
+                  </div>
+                </div>
+
+                <!-- Linux Tab -->
+                <div class="os-tab-content" id="os-tab-linux">
+                  <ol class="setup-steps-list">
+                    <li>If running Ollama as a <strong>systemd</strong> service, edit the service environment overrides with <code>sudo systemctl edit ollama.service</code>.</li>
+                    <li>In the editor, add the <code>[Service]</code> section with <code>Environment="OLLAMA_ORIGINS=*"</code>.</li>
+                    <li>Reload systemd and restart the service with the commands below.</li>
+                  </ol>
+                  <div class="callout-powershell-tip">
+                    <span>Terminal Commands (Run in Terminal):</span>
+                    <code>sudo systemctl daemon-reload && sudo systemctl restart ollama</code>
+                  </div>
+                </div>
               </div>
 
               <!-- Laptop Hardware & Recommended Models Guide -->
@@ -661,14 +768,18 @@
                 <div class="form-group">
                   <label class="form-label" for="llm-geminiApiKey">Gemini API Key</label>
                   <input type="password" id="llm-geminiApiKey" class="form-input" placeholder="AIzaSy..." />
+                  <span class="form-hint">Obtain your API key from Google AI Studio.</span>
                 </div>
                 <div class="form-group">
-                  <label class="form-label" for="llm-geminiModel">Model Name</label>
-                  <select id="llm-geminiModel" class="form-select">
-                    <option value="gemini-1.5-flash" selected>gemini-1.5-flash (Fast & Economical)</option>
-                    <option value="gemini-1.5-pro">gemini-1.5-pro (High Reasoning)</option>
-                    <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-                  </select>
+                  <div class="label-with-link">
+                    <label class="form-label" for="llm-geminiModel">Model Name / Identifier</label>
+                    <a href="https://aistudio.google.com/docs" target="_blank" rel="noopener noreferrer" class="doc-link-pill" title="Open Google Gemini Models Documentation">
+                      <span>Docs</span>
+                      <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                    </a>
+                  </div>
+                  <input type="text" id="llm-geminiModel" class="form-input" placeholder="e.g. gemini-1.5-flash, gemini-2.0-flash, gemini-1.5-pro" />
+                  <span class="form-hint">Check <a href="https://aistudio.google.com/docs" target="_blank" rel="noopener noreferrer" class="text-link">Google AI Studio Docs</a> and copy/paste only active, non-deprecated models.</span>
                 </div>
               </div>
             </div>
@@ -679,13 +790,18 @@
                 <div class="form-group">
                   <label class="form-label" for="llm-openaiApiKey">OpenAI API Key</label>
                   <input type="password" id="llm-openaiApiKey" class="form-input" placeholder="sk-proj-..." />
+                  <span class="form-hint">Your standard OpenAI Platform secret API key.</span>
                 </div>
                 <div class="form-group">
-                  <label class="form-label" for="llm-openaiModel">Model Name</label>
-                  <select id="llm-openaiModel" class="form-select">
-                    <option value="gpt-4o-mini" selected>gpt-4o-mini (Fast & Intelligent)</option>
-                    <option value="gpt-4o">gpt-4o (State of the Art)</option>
-                  </select>
+                  <div class="label-with-link">
+                    <label class="form-label" for="llm-openaiModel">Model Name / Identifier</label>
+                    <a href="https://developers.openai.com/api/docs/models" target="_blank" rel="noopener noreferrer" class="doc-link-pill" title="Open OpenAI Models Documentation">
+                      <span>Docs</span>
+                      <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                    </a>
+                  </div>
+                  <input type="text" id="llm-openaiModel" class="form-input" placeholder="e.g. gpt-4o-mini, gpt-4o, o3-mini" />
+                  <span class="form-hint">Check <a href="https://developers.openai.com/api/docs/models" target="_blank" rel="noopener noreferrer" class="text-link">OpenAI Models Docs</a> and copy/paste only active, non-deprecated models.</span>
                 </div>
               </div>
             </div>
@@ -696,13 +812,18 @@
                 <div class="form-group">
                   <label class="form-label" for="llm-anthropicApiKey">Anthropic API Key</label>
                   <input type="password" id="llm-anthropicApiKey" class="form-input" placeholder="sk-ant-..." />
+                  <span class="form-hint">Your Anthropic Claude Console API key.</span>
                 </div>
                 <div class="form-group">
-                  <label class="form-label" for="llm-anthropicModel">Model Name</label>
-                  <select id="llm-anthropicModel" class="form-select">
-                    <option value="claude-3-5-haiku-20241022" selected>claude-3-5-haiku (Lightning Fast)</option>
-                    <option value="claude-3-5-sonnet-20241022">claude-3-5-sonnet (Deep Writing)</option>
-                  </select>
+                  <div class="label-with-link">
+                    <label class="form-label" for="llm-anthropicModel">Model Name / Identifier</label>
+                    <a href="https://platform.claude.com/docs/en/models/overview" target="_blank" rel="noopener noreferrer" class="doc-link-pill" title="Open Anthropic Claude Models Overview">
+                      <span>Docs</span>
+                      <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                    </a>
+                  </div>
+                  <input type="text" id="llm-anthropicModel" class="form-input" placeholder="e.g. claude-3-5-haiku-20241022, claude-3-5-sonnet-20241022" />
+                  <span class="form-hint">Check <a href="https://platform.claude.com/docs/en/models/overview" target="_blank" rel="noopener noreferrer" class="text-link">Anthropic Models Overview</a> and copy/paste only active, non-deprecated models.</span>
                 </div>
               </div>
             </div>
@@ -737,6 +858,102 @@
             </div>
 
             <div class="custom-fields-list" id="custom-fields-container"></div>
+          </div>
+
+          <!-- Flexible Dedicated Ads & Developer Showcase Grid -->
+          <div class="section-card custom-ad-section-card" id="custom-fields-ad-slot">
+            <div class="custom-ad-header">
+              <div class="custom-ad-header-left">
+                <span class="ad-pill-badge">SPONSORED SHOWCASE</span>
+                <h4 class="custom-ad-title">Recommended Developer &amp; Career Tools</h4>
+                <p class="custom-ad-subtitle">Discover high-performance developer tools, cloud GPUs, and engineering interview roadmaps.</p>
+              </div>
+            </div>
+
+            <div class="custom-ad-grid">
+              <!-- Ad Card 1: AI Resume & ATS Optimizer -->
+              <div class="custom-ad-item-card">
+                <div class="custom-ad-item-top">
+                  <div class="custom-ad-icon-box icon-purple">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="16" y1="13" x2="8" y2="13"></line>
+                      <line x1="16" y1="17" x2="8" y2="17"></line>
+                    </svg>
+                  </div>
+                  <span class="custom-ad-item-tag">FEATURED</span>
+                </div>
+                <div class="custom-ad-item-body">
+                  <h5 class="custom-ad-item-title">AI ATS Resume Optimizer</h5>
+                  <p class="custom-ad-item-desc">Analyze and tailor your resume against live job descriptions to maximize recruiter callback rates.</p>
+                </div>
+                <div class="custom-ad-item-footer">
+                  <a href="https://github.com/Indla26v/FormPilot" target="_blank" rel="noopener noreferrer" class="pill-btn pill-btn-ad-card">
+                    <span>Try Free</span>
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="7" y1="17" x2="17" y2="7"></line>
+                      <polyline points="7 7 17 7 17 17"></polyline>
+                    </svg>
+                  </a>
+                </div>
+              </div>
+
+              <!-- Ad Card 2: Cloud GPU & Inference Clusters -->
+              <div class="custom-ad-item-card">
+                <div class="custom-ad-item-top">
+                  <div class="custom-ad-icon-box icon-emerald">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                      <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                      <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                      <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                    </svg>
+                  </div>
+                  <span class="custom-ad-item-tag">SPONSORED</span>
+                </div>
+                <div class="custom-ad-item-body">
+                  <h5 class="custom-ad-item-title">High-Throughput Cloud GPUs</h5>
+                  <p class="custom-ad-item-desc">Rent RTX 4090, A100, and H100 instances by the minute for ultra-fast local LLM inference and fine-tuning.</p>
+                </div>
+                <div class="custom-ad-item-footer">
+                  <a href="https://github.com/Indla26v/FormPilot" target="_blank" rel="noopener noreferrer" class="pill-btn pill-btn-ad-card">
+                    <span>Explore GPUs</span>
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="7" y1="17" x2="17" y2="7"></line>
+                      <polyline points="7 7 17 7 17 17"></polyline>
+                    </svg>
+                  </a>
+                </div>
+              </div>
+
+              <!-- Ad Card 3: System Design & Tech Interview Roadmaps -->
+              <div class="custom-ad-item-card">
+                <div class="custom-ad-item-top">
+                  <div class="custom-ad-icon-box icon-indigo">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                      <polyline points="2 17 12 22 22 17"></polyline>
+                      <polyline points="2 12 12 17 22 12"></polyline>
+                    </svg>
+                  </div>
+                  <span class="custom-ad-item-tag">PARTNER</span>
+                </div>
+                <div class="custom-ad-item-body">
+                  <h5 class="custom-ad-item-title">System Design &amp; DSA Roadmaps</h5>
+                  <p class="custom-ad-item-desc">Master backend architecture, distributed caching, and technical interviews with interactive diagrams.</p>
+                </div>
+                <div class="custom-ad-item-footer">
+                  <a href="https://github.com/Indla26v/FormPilot" target="_blank" rel="noopener noreferrer" class="pill-btn pill-btn-ad-card">
+                    <span>View Roadmaps</span>
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="7" y1="17" x2="17" y2="7"></line>
+                      <polyline points="7 7 17 7 17 17"></polyline>
+                    </svg>
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 

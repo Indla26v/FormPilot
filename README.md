@@ -1,4 +1,4 @@
-# FormPilot — AI Forms Auto-Filler & RAG Assistant (Google Forms & Microsoft Forms)
+# Fillvyn — AI Forms Auto-Filler & RAG Assistant (Google Forms & Microsoft Forms)
 
 A smart, modern Manifest V3 Chrome Extension designed specifically for candidates, job seekers, and developers to auto-fill **Google Forms** and **Microsoft Forms (`forms.cloud.microsoft`, `forms.office.com`)**. Features **instant profile matching**, **clean numeric vs text formatting**, **Job Description (JD) target alignment**, and **Retrieval-Augmented Generation (RAG)** using your uploaded **Resume** and **GitHub Project `README.md` files** powered by **Local Ollama (100% Free & Offline)**, Google Gemini, OpenAI, or Claude.
 
@@ -69,7 +69,7 @@ If you run **Local Ollama** models (such as `llama3.2`, `deepseek-r1`, `phi3`, `
    ```
 3. Enable Chrome extension access:
    - On Windows: Add environment variable `OLLAMA_ORIGINS` with value `*` and restart Ollama.
-4. In FormPilot Options -> **AI & Local LLM Setup**:
+4. In Fillvyn Options -> **AI & Local LLM Setup**:
    - Provider: `Ollama (Local Offline)`
    - Click **Detect Models** -> select `llama3.2` -> Click **Test Connection**.
 
@@ -79,8 +79,8 @@ If you run **Local Ollama** models (such as `llama3.2`, `deepseek-r1`, `phi3`, `
 
 1. Navigate to `chrome://extensions/` in Google Chrome.
 2. Enable **Developer mode** (top right).
-3. Click **Load unpacked** and select `c:\Projects\GFAF`. If already loaded, click the circular **Reload** icon on the FormPilot card.
-4. Pin the FormPilot extension to your toolbar.
+3. Click **Load unpacked** and select `c:\Projects\GFAF`. If already loaded, click the circular **Reload** icon on the Fillvyn card.
+4. Pin the Fillvyn extension to your toolbar.
 5. Open your candidate dashboard to upload your Resume and add your GitHub Project READMEs!
 
 ---

@@ -181,6 +181,29 @@ export class SecurityGuardService {
       ? clean.activeProfileId
       : safeProfiles[0].id;
 
+    // Common data sanitization
+    let safeCommonData = null;
+    if (clean.commonData && typeof clean.commonData === 'object') {
+      const dummyProfile = this.validateAndSanitizeProfile({
+        id: 'temp_common',
+        name: 'Common',
+        personal: clean.commonData.personal,
+        education: clean.commonData.education,
+        professional: clean.commonData.professional
+      });
+      safeCommonData = {
+        personal: dummyProfile.personal,
+        education: dummyProfile.education,
+        professional: dummyProfile.professional
+      };
+    } else if (safeProfiles.length > 0) {
+      safeCommonData = {
+        personal: safeProfiles[0].personal,
+        education: safeProfiles[0].education,
+        professional: safeProfiles[0].professional
+      };
+    }
+
     const safeSettings = clean.settings && typeof clean.settings === 'object'
       ? {
           autoHighlight: Boolean(clean.settings.autoHighlight !== false),
@@ -211,6 +234,47 @@ export class SecurityGuardService {
         }))
       : [];
 
+    const safeRagDocsByProfile = {};
+    if (clean.ragDocsByProfile && typeof clean.ragDocsByProfile === 'object') {
+      for (const [pId, docsList] of Object.entries(clean.ragDocsByProfile)) {
+        if (Array.isArray(docsList)) {
+          safeRagDocsByProfile[String(pId).slice(0, 64)] = docsList.map((d) => ({
+            id: String(d.id || '').slice(0, 64),
+            profileId: String(d.profileId || pId).slice(0, 64),
+            title: String(d.title || '').slice(0, 150),
+            type: String(d.type || 'document').slice(0, 30),
+            source: String(d.source || 'document').slice(0, 30),
+            repoUrl: d.repoUrl ? String(d.repoUrl).slice(0, 500) : undefined,
+            owner: d.owner ? String(d.owner).slice(0, 80) : undefined,
+            repo: d.repo ? String(d.repo).slice(0, 80) : undefined,
+            fileName: d.fileName ? String(d.fileName).slice(0, 150) : undefined,
+            content: String(d.content || '').slice(0, 500000),
+            chunkCount: Number(d.chunkCount) || 0,
+            createdAt: String(d.createdAt || new Date().toISOString())
+          }));
+        }
+      }
+    }
+
+    const safeRagChunksByProfile = {};
+    if (clean.ragChunksByProfile && typeof clean.ragChunksByProfile === 'object') {
+      for (const [pId, chunksList] of Object.entries(clean.ragChunksByProfile)) {
+        if (Array.isArray(chunksList)) {
+          safeRagChunksByProfile[String(pId).slice(0, 64)] = chunksList.map((c) => ({
+            id: String(c.id || '').slice(0, 64),
+            docId: String(c.docId || '').slice(0, 64),
+            profileId: String(c.profileId || pId).slice(0, 64),
+            docTitle: String(c.docTitle || '').slice(0, 150),
+            sectionTitle: String(c.sectionTitle || '').slice(0, 100),
+            source: String(c.source || 'document').slice(0, 30),
+            text: String(c.text || '').slice(0, 5000),
+            wordCount: Number(c.wordCount) || 0,
+            createdAt: String(c.createdAt || new Date().toISOString())
+          }));
+        }
+      }
+    }
+
     // Sanitize LLM config (strip any malicious keys)
     let safeLlmConfig = null;
     if (clean.llmConfig && typeof clean.llmConfig === 'object') {
@@ -218,9 +282,9 @@ export class SecurityGuardService {
         provider: String(clean.llmConfig.provider || 'ollama').slice(0, 30),
         ollamaEndpoint: String(clean.llmConfig.ollamaEndpoint || 'http://localhost:11434').slice(0, 150),
         ollamaModel: String(clean.llmConfig.ollamaModel || 'llama3.2').slice(0, 60),
-        geminiModel: String(clean.llmConfig.geminiModel || 'gemini-1.5-flash').slice(0, 60),
-        openaiModel: String(clean.llmConfig.openaiModel || 'gpt-4o-mini').slice(0, 60),
-        anthropicModel: String(clean.llmConfig.anthropicModel || 'claude-3-5-haiku-20241022').slice(0, 60)
+        geminiModel: String(clean.llmConfig.geminiModel || '').slice(0, 60),
+        openaiModel: String(clean.llmConfig.openaiModel || '').slice(0, 60),
+        anthropicModel: String(clean.llmConfig.anthropicModel || '').slice(0, 60)
       };
       if (clean.llmConfig.geminiApiKey) safeLlmConfig.geminiApiKey = String(clean.llmConfig.geminiApiKey).slice(0, 120);
       if (clean.llmConfig.openaiApiKey) safeLlmConfig.openaiApiKey = String(clean.llmConfig.openaiApiKey).slice(0, 120);
@@ -229,10 +293,13 @@ export class SecurityGuardService {
 
     return {
       profiles: safeProfiles,
+      commonData: safeCommonData,
       activeProfileId: activeId,
       settings: safeSettings,
       ragDocs: safeRagDocs,
       ragChunks: safeRagChunks,
+      ragDocsByProfile: safeRagDocsByProfile,
+      ragChunksByProfile: safeRagChunksByProfile,
       llmConfig: safeLlmConfig
     };
   }
@@ -488,7 +555,13 @@ export class SecurityGuardService {
       return {
         provider: 'ollama',
         ollamaEndpoint: 'http://localhost:11434',
-        ollamaModel: 'llama3.2'
+        ollamaModel: 'llama3.2',
+        geminiApiKey: '',
+        geminiModel: '',
+        openaiApiKey: '',
+        openaiModel: '',
+        anthropicApiKey: '',
+        anthropicModel: ''
       };
     }
 
@@ -520,11 +593,11 @@ export class SecurityGuardService {
       ollamaEndpoint: endpoint.slice(0, 150),
       ollamaModel: sanitizeModel(clean.ollamaModel, 'llama3.2'),
       geminiApiKey: clean.geminiApiKey ? String(clean.geminiApiKey).trim().slice(0, 120) : '',
-      geminiModel: sanitizeModel(clean.geminiModel, 'gemini-1.5-flash'),
+      geminiModel: sanitizeModel(clean.geminiModel, ''),
       openaiApiKey: clean.openaiApiKey ? String(clean.openaiApiKey).trim().slice(0, 120) : '',
-      openaiModel: sanitizeModel(clean.openaiModel, 'gpt-4o-mini'),
+      openaiModel: sanitizeModel(clean.openaiModel, ''),
       anthropicApiKey: clean.anthropicApiKey ? String(clean.anthropicApiKey).trim().slice(0, 120) : '',
-      anthropicModel: sanitizeModel(clean.anthropicModel, 'claude-3-5-haiku-20241022')
+      anthropicModel: sanitizeModel(clean.anthropicModel, '')
     };
   }
 }

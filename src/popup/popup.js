@@ -6,8 +6,8 @@ import { StorageService } from '../services/StorageService.js';
 import { ICONS } from '../utils/svgIcons.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Inject SVG icons
-  document.getElementById('brand-logo-icon').innerHTML = ICONS.zap;
+  // Inject SVG / image icons
+  document.getElementById('brand-logo-icon').innerHTML = '<img src="../../icons/icon48.png" style="width: 24px; height: 24px; object-fit: contain; border-radius: 6px;" alt="Fillvyn Logo" />';
   document.getElementById('hero-sparkle-icon').innerHTML = ICONS.sparkles;
   document.getElementById('icon-options').innerHTML = ICONS.settings;
   document.getElementById('toast-icon').innerHTML = ICONS.checkCircle;

@@ -41,7 +41,7 @@ function injectIcons() {
     if (el) el.innerHTML = svg;
   };
 
-  safeSetIcon('brand-badge-icon', ICONS.zap);
+  safeSetIcon('brand-badge-icon', '<img src="../../icons/icon48.png" style="width: 24px; height: 24px; object-fit: contain; border-radius: 6px;" alt="Fillvyn Logo" />');
   safeSetIcon('icon-rename-profile', ICONS.edit);
   safeSetIcon('icon-duplicate', ICONS.layers);
   safeSetIcon('icon-new-profile', ICONS.plus);
@@ -72,6 +72,7 @@ function injectIcons() {
   safeSetIcon('icon-detect-models', ICONS.search);
   safeSetIcon('icon-test-llm', ICONS.zap);
   safeSetIcon('icon-save-llm', ICONS.save);
+  safeSetIcon('icon-wakeup-model', ICONS.power);
 }
 
 /**
@@ -148,16 +149,62 @@ async function loadProfilesAndSettings() {
   currentProfile = await StorageService.getActiveProfile();
   currentSettings = await StorageService.getSettings();
 
-  // Populate profile selector
-  const profileSelect = document.getElementById('active-profile-select');
-  profileSelect.innerHTML = '';
-  profiles.forEach((p) => {
-    const opt = document.createElement('option');
-    opt.value = p.id;
-    opt.textContent = p.name;
-    if (p.id === currentProfile.id) opt.selected = true;
-    profileSelect.appendChild(opt);
-  });
+  // Populate custom profile selector
+  const profileHidden = document.getElementById('active-profile-select');
+  const profileText = document.getElementById('text-active-profile');
+  const profileDropdown = document.getElementById('dropdown-active-profile');
+  const profileWrapper = document.getElementById('wrapper-active-profile');
+  const profileTrigger = document.getElementById('trigger-active-profile');
+
+  if (profileHidden) profileHidden.value = currentProfile.id;
+  if (profileText) profileText.textContent = currentProfile.name;
+
+  if (profileDropdown) {
+    profileDropdown.innerHTML = '';
+    profiles.forEach((p) => {
+      const opt = document.createElement('div');
+      opt.className = `custom-select-option ${p.id === currentProfile.id ? 'selected' : ''}`;
+      opt.setAttribute('data-value', p.id);
+      opt.setAttribute('role', 'option');
+      opt.innerHTML = `
+        <div class="profile-option-content">
+          <span class="custom-select-dot ${p.id === currentProfile.id ? 'dot-detected' : ''}"></span>
+          <span class="profile-option-text">${escapeHtml(p.name)}</span>
+        </div>
+      `;
+
+      opt.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (p.id !== currentProfile.id) {
+          await StorageService.setActiveProfileId(p.id);
+          await loadProfilesAndSettings();
+          showToast(`Switched active profile to "${p.name}"`);
+        }
+        if (profileWrapper) {
+          profileWrapper.classList.remove('open');
+          profileTrigger?.setAttribute('aria-expanded', 'false');
+        }
+      });
+
+      profileDropdown.appendChild(opt);
+    });
+  }
+
+  if (profileWrapper && profileTrigger && !profileWrapper._bound) {
+    profileWrapper._bound = true;
+    profileTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      profileWrapper.classList.toggle('open');
+      profileTrigger.setAttribute('aria-expanded', profileWrapper.classList.contains('open'));
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!profileWrapper.contains(e.target)) {
+        profileWrapper.classList.remove('open');
+        profileTrigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
 
   // Populate Personal
   setVal('field-profileName', currentProfile.name);
@@ -211,6 +258,9 @@ async function loadProfilesAndSettings() {
 
   // Render Custom Fields
   renderCustomFields();
+
+  // Render Knowledge Base Documents for this active profile
+  await renderRagDocuments();
 
   // Populate Settings
   document.getElementById('setting-autoHighlight').checked = currentSettings.autoHighlight !== false;
@@ -391,7 +441,7 @@ async function initRagHandlers() {
 
       try {
         const doc = await DocumentParserService.fetchGitHubReadme(url);
-        await RagKnowledgeBaseService.addDocument(doc);
+        await RagKnowledgeBaseService.addDocument(doc, currentProfile?.id);
         githubInput.value = '';
         await renderRagDocuments();
         showToast(`Indexed "${doc.title}" with ${doc.chunkCount} knowledge chunks!`, 'success');
@@ -404,14 +454,14 @@ async function initRagHandlers() {
     });
   }
 
-  // Sync All GitHub Repos
+  // Sync All GitHub Repos for current profile
   if (syncAllGithubBtn) {
     syncAllGithubBtn.addEventListener('click', async () => {
       syncAllGithubBtn.disabled = true;
       syncAllGithubBtn.innerHTML = `<span class="btn-icon spinning">${ICONS.refresh}</span><span>Syncing Repos...</span>`;
 
       try {
-        const res = await RagKnowledgeBaseService.syncAllGitHubDocuments();
+        const res = await RagKnowledgeBaseService.syncAllGitHubDocuments(currentProfile?.id);
         await renderRagDocuments();
         if (res.synced > 0) {
           showToast(`Successfully synced ${res.synced} GitHub repo README(s)!`, 'success');
@@ -429,13 +479,13 @@ async function initRagHandlers() {
     });
   }
 
-  // Clear Knowledge Base
+  // Clear Knowledge Base for current profile
   if (clearKbBtn) {
     clearKbBtn.addEventListener('click', async () => {
-      if (confirm('Are you sure you want to clear all indexed documents from the Knowledge Base?')) {
-        await RagKnowledgeBaseService.clearKnowledgeBase();
+      if (confirm(`Are you sure you want to clear all indexed documents for "${currentProfile?.name || 'this profile'}"?`)) {
+        await RagKnowledgeBaseService.clearKnowledgeBase(currentProfile?.id);
         await renderRagDocuments();
-        showToast('Knowledge Base cleared.', 'info');
+        showToast('Knowledge Base cleared for this profile.', 'info');
       }
     });
   }
@@ -450,7 +500,7 @@ async function handleResumeFileUpload(file) {
     SecurityGuardService.validateDocumentFile(file);
     showToast(`Parsing ${file.name}...`, 'info');
     const doc = await DocumentParserService.parseFile(file);
-    await RagKnowledgeBaseService.addDocument(doc);
+    await RagKnowledgeBaseService.addDocument(doc, currentProfile?.id);
     await renderRagDocuments();
     showToast(`Indexed "${doc.title}" with ${doc.chunkCount} knowledge chunks!`, 'success');
   } catch (err) {
@@ -463,7 +513,7 @@ async function renderRagDocuments() {
   const syncAllGithubBtn = document.getElementById('btn-sync-all-github');
   if (!container) return;
 
-  const docs = await RagKnowledgeBaseService.getDocuments();
+  const docs = await RagKnowledgeBaseService.getDocuments(currentProfile?.id);
   container.innerHTML = '';
 
   const hasGithubDocs = docs.some((d) => d.type === 'github_readme' || d.source === 'github' || Boolean(d.repoUrl));
@@ -472,7 +522,7 @@ async function renderRagDocuments() {
   }
 
   if (docs.length === 0) {
-    container.innerHTML = `<div class="empty-state">No documents ingested yet. Upload a resume or add a GitHub repo above.</div>`;
+    container.innerHTML = `<div class="empty-state">No documents ingested for this profile yet. Upload a resume or add a GitHub repo above.</div>`;
     return;
   }
 
@@ -516,7 +566,7 @@ async function renderRagDocuments() {
         syncBtn.disabled = true;
         syncBtn.innerHTML = `<span class="btn-icon spinning">${ICONS.refresh}</span><span>Syncing...</span>`;
         try {
-          const res = await RagKnowledgeBaseService.syncGitHubDocument(doc.id);
+          const res = await RagKnowledgeBaseService.syncGitHubDocument(doc.id, currentProfile?.id);
           await renderRagDocuments();
           showToast(`Synced latest README for "${doc.title}" (${res.chunksCount} chunks)!`, 'success');
         } catch (err) {
@@ -528,7 +578,7 @@ async function renderRagDocuments() {
     }
 
     card.querySelector('.doc-delete-btn').addEventListener('click', async () => {
-      await RagKnowledgeBaseService.deleteDocument(doc.id);
+      await RagKnowledgeBaseService.deleteDocument(doc.id, currentProfile?.id);
       await renderRagDocuments();
       showToast(`Removed "${doc.title}"`);
     });
@@ -547,11 +597,11 @@ async function initLlmHandlers() {
   setVal('llm-ollamaEndpoint', config.ollamaEndpoint || 'http://localhost:11434');
   setVal('llm-ollamaModel', config.ollamaModel || 'llama3.2');
   setVal('llm-geminiApiKey', config.geminiApiKey || '');
-  setVal('llm-geminiModel', config.geminiModel || 'gemini-1.5-flash');
+  setVal('llm-geminiModel', config.geminiModel || '');
   setVal('llm-openaiApiKey', config.openaiApiKey || '');
-  setVal('llm-openaiModel', config.openaiModel || 'gpt-4o-mini');
+  setVal('llm-openaiModel', config.openaiModel || '');
   setVal('llm-anthropicApiKey', config.anthropicApiKey || '');
-  setVal('llm-anthropicModel', config.anthropicModel || 'claude-3-5-haiku-20241022');
+  setVal('llm-anthropicModel', config.anthropicModel || '');
 
   // Provider switcher
   const providerCards = document.querySelectorAll('.provider-radio-card');
@@ -769,6 +819,22 @@ async function initLlmHandlers() {
       showToast('AI Configuration saved successfully!', 'success');
     });
   }
+
+  // OS Setup Guide Switcher (Windows / macOS / Linux)
+  const osPillButtons = document.querySelectorAll('.os-pill-btn');
+  osPillButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const os = btn.getAttribute('data-os');
+      osPillButtons.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      document.querySelectorAll('.os-tab-content').forEach((tab) => {
+        tab.classList.remove('active');
+      });
+      const activeTab = document.getElementById(`os-tab-${os}`);
+      if (activeTab) activeTab.classList.add('active');
+    });
+  });
 }
 
 /**
@@ -945,17 +1011,27 @@ function initActionHandlers() {
 
   // New Profile (Sanitized)
   document.getElementById('btn-new-profile')?.addEventListener('click', async () => {
-    const rawName = prompt('Enter profile name:', 'New Profile');
+    const rawName = prompt('Enter role profile name (e.g. Java Backend, AI Engineer):', 'New Role Profile');
     if (rawName) {
       const cleanName = rawName.replace(/<[^>]*>?/gm, '').trim().slice(0, 100);
       if (cleanName) {
-        const newP = JSON.parse(JSON.stringify(DEFAULT_PROFILE));
-        newP.id = `profile_${Date.now()}`;
-        newP.name = cleanName;
+        const common = await StorageService.getCommonData();
+        const newP = {
+          ...JSON.parse(JSON.stringify(DEFAULT_PROFILE)),
+          id: `profile_${Date.now()}`,
+          name: cleanName,
+          personal: common.personal,
+          education: common.education,
+          professional: common.professional,
+          skills: [],
+          customFields: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
         await StorageService.saveProfile(newP);
         await StorageService.setActiveProfileId(newP.id);
         await loadProfilesAndSettings();
-        showToast(`Created profile "${cleanName}"`);
+        showToast(`Created role profile "${cleanName}"`);
       }
     }
   });
@@ -986,7 +1062,7 @@ function initActionHandlers() {
         a.href = url;
         const profilePrefix = (currentProfile?.name || 'Profile').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
         const dateStr = new Date().toISOString().slice(0, 10);
-        a.download = `${profilePrefix}_FormPilot_Backup_${dateStr}.json`;
+        a.download = `${profilePrefix}_Fillvyn_Backup_${dateStr}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -1016,7 +1092,7 @@ function initActionHandlers() {
         a.href = url;
         const profilePrefix = (currentProfile?.name || 'Profile').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
         const dateStr = new Date().toISOString().slice(0, 10);
-        a.download = `${profilePrefix}_FormPilot_Encrypted_${dateStr}.gfaf.enc`;
+        a.download = `${profilePrefix}_Fillvyn_Encrypted_${dateStr}.gfaf.enc`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -1145,6 +1221,7 @@ async function saveCurrentProfile() {
 
   await StorageService.saveProfile(currentProfile);
   await StorageService.saveSettings(settings);
+  await loadProfilesAndSettings();
 
   showToast('Profile and settings saved successfully!');
 }

@@ -1,5 +1,5 @@
 /**
- * Automated Security Suite for FormPilot
+ * Automated Security Suite for Fillvyn
  * Verifies XSS defense, Background Proxy Allowlist, Schema Validation, API Key Redaction, and Web Crypto AES-GCM-256.
  */
 
@@ -8,7 +8,7 @@ import { SecurityGuardService } from '../src/services/security/SecurityGuardServ
 import { CryptoService } from '../src/services/security/CryptoService.js';
 
 console.log('----------------------------------------------------');
-console.log('RUNNING FORMPILOT SECURITY VERIFICATION TESTS');
+console.log('RUNNING FILLVYN SECURITY VERIFICATION TESTS');
 console.log('----------------------------------------------------\n');
 
 // ----------------------------------------------------

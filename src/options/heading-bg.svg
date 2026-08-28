@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 120" width="100%" height="100%" preserveAspectRatio="none">
+  <defs>
+    <!-- Base Horizontal Header Gradient -->
+    <linearGradient id="headingBgGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0b101d" />
+      <stop offset="30%" stop-color="#0f172a" />
+      <stop offset="70%" stop-color="#111a30" />
+      <stop offset="100%" stop-color="#090d18" />
+    </linearGradient>
+
+    <!-- Horizontal Light Beam Glow -->
+    <radialGradient id="headerBeam" cx="35%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.22" />
+      <stop offset="40%" stop-color="#38bdf8" stop-opacity="0.08" />
+      <stop offset="100%" stop-color="#0b101d" stop-opacity="0" />
+    </radialGradient>
+
+    <radialGradient id="headerRightBeam" cx="85%" cy="30%" r="50%">
+      <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.16" />
+      <stop offset="50%" stop-color="#6366f1" stop-opacity="0.04" />
+      <stop offset="100%" stop-color="#0b101d" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Linear Accent Beam -->
+    <linearGradient id="beamLine" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6366f1" stop-opacity="0" />
+      <stop offset="30%" stop-color="#6366f1" stop-opacity="0.4" />
+      <stop offset="60%" stop-color="#38bdf8" stop-opacity="0.5" />
+      <stop offset="85%" stop-color="#a855f7" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0" />
+    </linearGradient>
+
+    <pattern id="headerGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="0.75" fill="#6366f1" fill-opacity="0.06" />
+    </pattern>
+
+    <filter id="headerBlur" x="-10%" y="-30%" width="120%" height="160%">
+      <feGaussianBlur stdDeviation="15" />
+    </filter>
+  </defs>
+
+  <!-- Canvas -->
+  <rect width="100%" height="100%" fill="url(#headingBgGrad)" />
+  <rect width="100%" height="100%" fill="url(#headerBeam)" />
+  <rect width="100%" height="100%" fill="url(#headerRightBeam)" />
+  <rect width="100%" height="100%" fill="url(#headerGrid)" />
+
+  <!-- Horizontal Luminous Light Streak -->
+  <path d="M0,60 Q400,20 800,60 T1600,50" fill="none" stroke="url(#beamLine)" stroke-width="2.5" filter="url(#headerBlur)" opacity="0.8" />
+  <path d="M0,60 Q400,20 800,60 T1600,50" fill="none" stroke="url(#beamLine)" stroke-width="1" opacity="0.6" />
+</svg>

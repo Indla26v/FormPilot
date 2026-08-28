@@ -256,12 +256,14 @@ export class FieldMatcherService {
    * Match question text to profile Smart Answers
    */
   static matchSmartAnswers(questionText, profile) {
-    if (!profile.smartAnswers || !Array.isArray(profile.smartAnswers)) return null;
+    const answersList = (profile && Array.isArray(profile.smartAnswers) && profile.smartAnswers.length > 0)
+      ? profile.smartAnswers
+      : (DEFAULT_PROFILE.smartAnswers || []);
 
     let bestMatch = null;
     let highestScore = 0;
 
-    for (const qa of profile.smartAnswers) {
+    for (const qa of answersList) {
       if (!qa.keywords || !qa.answer) continue;
 
       const score = this.matchKeywords(questionText, qa.keywords);

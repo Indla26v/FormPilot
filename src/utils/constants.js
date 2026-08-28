@@ -5,8 +5,13 @@
 export const STORAGE_KEYS = {
   PROFILES: 'gfaf_profiles',
   ACTIVE_PROFILE_ID: 'gfaf_active_profile_id',
+  COMMON_DATA: 'gfaf_common_data',
   SETTINGS: 'gfaf_settings',
-  HISTORY: 'gfaf_fill_history'
+  HISTORY: 'gfaf_fill_history',
+  DOCS: 'gfaf_rag_documents',
+  CHUNKS: 'gfaf_rag_chunks',
+  getRagDocsKey: (profileId = 'default') => `gfaf_rag_docs_${profileId || 'default'}`,
+  getRagChunksKey: (profileId = 'default') => `gfaf_rag_chunks_${profileId || 'default'}`
 };
 
 export const DEFAULT_SETTINGS = {
@@ -15,6 +20,51 @@ export const DEFAULT_SETTINGS = {
   showFloatingWidget: true,
   notificationDurationMs: 3000,
   confidenceThreshold: 0.55
+};
+
+export const DEFAULT_COMMON_DATA = {
+  personal: {
+    fullName: 'Alex Morgan',
+    firstName: 'Alex',
+    lastName: 'Morgan',
+    email: 'alex.morgan.dev@example.com',
+    phone: '+1 555-019-2834',
+    phoneDigits: '5550192834',
+    currentLocation: 'San Francisco, CA',
+    city: 'San Francisco',
+    country: 'United States',
+    address: '742 Evergreen Terrace, San Francisco, CA 94107'
+  },
+  education: {
+    collegeName: 'University of Technology',
+    degree: 'B.S. in Computer Science & Engineering',
+    graduationYear: '2025',
+    graduationStatus: 'I am in my last year', // Radio option matching
+    workingStatus: 'Student',
+    tenthPercentage: '92.5%',
+    tenthPercentageNumeric: '92.5',
+    twelfthPercentage: '94.0%',
+    twelfthPercentageNumeric: '94.0',
+    graduationCgpa: '8.8 / 10',
+    graduationCgpaNumeric: '8.8'
+  },
+  professional: {
+    currentOrganization: 'Acme Labs / Open Source Builder',
+    currentRole: 'AI & Full Stack Engineer',
+    totalExperienceYears: '1',
+    noticePeriod: 'Immediate',
+    noticePeriodDays: '0', // 0 for immediate joiners, 15, 30, etc.
+    canJoinImmediately: 'Yes',
+    hoursCommitmentConfirmed: 'Yes',
+    currentCtc: '0',
+    currentCtcLpa: '0', // In LPA scale (e.g. 0, 5, 10)
+    currentCtcNumeric: '0',
+    expectedCtc: '7 - 12 LPA',
+    expectedCtcLpa: '10', // In LPA scale (e.g. 10)
+    expectedCtcNumeric: '1000000',
+    stipendExpectation: 'Rs. 40,000 - 60,000 / month',
+    stipendExpectationNumeric: '50000'
+  }
 };
 
 export const DEFAULT_PROFILE = {

@@ -10,7 +10,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: 'gfaf_fill_form',
-      title: 'Auto-fill with FormPilot',
+      title: 'Auto-fill with Fillvyn',
       contexts: ['page', 'editable'],
       documentUrlPatterns: [
         '*://docs.google.com/forms/*',
@@ -116,7 +116,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Proxy Ollama / LLM API calls with strict host allowlist validation
   if (message.action === 'PROXY_FETCH' || message.action === 'GENERATE_LLM_RAG') {
-    const endpoint = message.url || message.endpoint;
+    let endpoint = message.url || message.endpoint;
     
     if (!isAllowedProxyUrl(endpoint)) {
       sendResponse({ success: false, error: `Security violation: destination host is not in allowed proxy list.` });
@@ -131,17 +131,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       options.body = typeof message.payload === 'string' ? message.payload : JSON.stringify(message.payload);
     }
 
-    fetch(endpoint, options)
-      .then(async (res) => {
-        const isJson = res.headers.get('content-type')?.includes('application/json');
-        const data = isJson ? await res.json() : await res.text();
-        if (res.ok) {
-          sendResponse({ success: true, status: res.status, data });
-        } else {
-          sendResponse({ success: false, status: res.status, error: data?.error?.message || data || `HTTP ${res.status}` });
+    const executeFetch = async (targetUrl) => {
+      const res = await fetch(targetUrl, options);
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      const data = isJson ? await res.json() : await res.text();
+      if (res.ok) {
+        return { success: true, status: res.status, data };
+      } else {
+        const errorMsg = data?.error?.message || data?.error || data?.message || (typeof data === 'object' ? JSON.stringify(data) : String(data)) || `HTTP ${res.status}`;
+        return { success: false, status: res.status, error: errorMsg };
+      }
+    };
+
+    executeFetch(endpoint)
+      .then((res) => sendResponse(res))
+      .catch(async (err) => {
+        // If localhost:11434 failed, try 127.0.0.1:11434 as IPv4 fallback
+        if (endpoint && endpoint.includes('localhost:11434')) {
+          const fallbackUrl = endpoint.replace('localhost:11434', '127.0.0.1:11434');
+          try {
+            const fallbackRes = await executeFetch(fallbackUrl);
+            sendResponse(fallbackRes);
+            return;
+          } catch (e) {}
         }
-      })
-      .catch((err) => sendResponse({ success: false, error: err.message }));
+
+        const isLocalhost = endpoint && (endpoint.includes('localhost') || endpoint.includes('127.0.0.1'));
+        const friendlyError = isLocalhost
+          ? 'Ollama is offline or unreachable at localhost:11434. Ensure Ollama is running or configure Gemini/OpenAI in Fillvyn Settings.'
+          : (err.message || 'Network request failed');
+
+        sendResponse({ success: false, error: friendlyError, isOffline: true });
+      });
+
     return true;
   }
 });

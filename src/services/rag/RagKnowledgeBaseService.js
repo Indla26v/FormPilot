@@ -5,13 +5,53 @@
 
 import { StorageService } from '../StorageService.js';
 import { DocumentParserService } from './DocumentParserService.js';
-
-const STORAGE_KEYS = {
-  DOCS: 'gfaf_rag_documents',
-  CHUNKS: 'gfaf_rag_chunks'
-};
+import { RetrievalService } from './RetrievalService.js';
+import { STORAGE_KEYS, DEFAULT_PROFILE } from '../../utils/constants.js';
 
 export class RagKnowledgeBaseService {
+  /**
+   * Helper to resolve active profile ID if not explicitly provided
+   */
+  static async resolveProfileId(profileId = null) {
+    if (profileId) return profileId;
+    try {
+      const activeId = await StorageService.getActiveProfileId();
+      if (activeId) return activeId;
+    } catch (e) {}
+    return DEFAULT_PROFILE?.id || 'profile_default';
+  }
+
+  /**
+   * Create chunk object with pre-indexed tokens and term frequencies for O(queryTokens) retrieval
+   */
+  static createChunkObject(doc, chunkIndex, sectionTitle, chunkText, wordCount) {
+    const chunkTokens = RetrievalService.tokenize(chunkText);
+    const sectionTokens = RetrievalService.tokenize(sectionTitle || '');
+    const titleTokens = RetrievalService.tokenize(doc.title || '');
+
+    const termFreq = {};
+    for (const t of chunkTokens) {
+      termFreq[t] = (termFreq[t] || 0) + 1;
+    }
+
+    return {
+      id: `${doc.id}_chunk_${chunkIndex}`,
+      docId: doc.id,
+      profileId: doc.profileId,
+      docTitle: doc.title,
+      sectionTitle: sectionTitle,
+      source: doc.source || 'document',
+      text: chunkText,
+      wordCount: wordCount,
+      _tokens: chunkTokens,
+      _termFreq: termFreq,
+      _sectionTokens: sectionTokens,
+      _titleTokens: titleTokens,
+      _lengthPenalty: Math.sqrt(chunkTokens.length) || 1,
+      createdAt: new Date().toISOString()
+    };
+  }
+
   /**
    * Split document content into semantic chunks based on headers & paragraphs
    */
@@ -45,16 +85,7 @@ export class RagKnowledgeBaseService {
         if (currentBuffer.length > 0) {
           const chunkText = sanitizeChunkText(currentBuffer.join('\n'));
           if (chunkText.length > 10) {
-            chunks.push({
-              id: `${doc.id}_chunk_${chunkIndex++}`,
-              docId: doc.id,
-              docTitle: doc.title,
-              sectionTitle: currentSectionTitle,
-              source: doc.source || 'document',
-              text: chunkText,
-              wordCount: currentWordCount,
-              createdAt: new Date().toISOString()
-            });
+            chunks.push(this.createChunkObject(doc, chunkIndex++, currentSectionTitle, chunkText, currentWordCount));
           }
           currentBuffer = [];
           currentWordCount = 0;
@@ -69,16 +100,7 @@ export class RagKnowledgeBaseService {
       if (currentWordCount >= options.maxChunkSize && chunks.length < MAX_CHUNKS) {
         const chunkText = sanitizeChunkText(currentBuffer.join('\n'));
         if (chunkText.length > 10) {
-          chunks.push({
-            id: `${doc.id}_chunk_${chunkIndex++}`,
-            docId: doc.id,
-            docTitle: doc.title,
-            sectionTitle: currentSectionTitle,
-            source: doc.source || 'document',
-            text: chunkText,
-            wordCount: currentWordCount,
-            createdAt: new Date().toISOString()
-          });
+          chunks.push(this.createChunkObject(doc, chunkIndex++, currentSectionTitle, chunkText, currentWordCount));
         }
 
         // Sliding window overlap
@@ -91,16 +113,7 @@ export class RagKnowledgeBaseService {
     if (currentBuffer.length > 0 && chunks.length < MAX_CHUNKS) {
       const chunkText = sanitizeChunkText(currentBuffer.join('\n'));
       if (chunkText.length > 10) {
-        chunks.push({
-          id: `${doc.id}_chunk_${chunkIndex++}`,
-          docId: doc.id,
-          docTitle: doc.title,
-          sectionTitle: currentSectionTitle,
-          source: doc.source || 'document',
-          text: chunkText,
-          wordCount: currentWordCount,
-          createdAt: new Date().toISOString()
-        });
+        chunks.push(this.createChunkObject(doc, chunkIndex++, currentSectionTitle, chunkText, currentWordCount));
       }
     }
 
@@ -108,14 +121,18 @@ export class RagKnowledgeBaseService {
   }
 
   /**
-   * Ingest and store a document into the Knowledge Base
+   * Ingest and store a document into the Knowledge Base for a specific profile
    */
-  static async addDocument(doc) {
+  static async addDocument(doc, profileId = null) {
     if (!doc || !doc.content) throw new Error('Invalid document');
+    const pId = await this.resolveProfileId(profileId);
+    const docsKey = STORAGE_KEYS.getRagDocsKey ? STORAGE_KEYS.getRagDocsKey(pId) : `gfaf_rag_docs_${pId}`;
+    const chunksKey = STORAGE_KEYS.getRagChunksKey ? STORAGE_KEYS.getRagChunksKey(pId) : `gfaf_rag_chunks_${pId}`;
 
     // Sanitize document metadata
     const cleanDoc = {
       id: String(doc.id || `doc_${Date.now()}`).slice(0, 64),
+      profileId: pId,
       title: String(doc.title || 'Untitled Document').slice(0, 150),
       type: String(doc.type || 'document').slice(0, 40),
       source: String(doc.source || 'document').slice(0, 40),
@@ -128,72 +145,102 @@ export class RagKnowledgeBaseService {
       updatedAt: doc.updatedAt || undefined
     };
 
-    const chunks = this.chunkDocument(cleanDoc);
+    const chunks = this.chunkDocument(cleanDoc).map((c) => ({ ...c, profileId: pId }));
     cleanDoc.chunkCount = chunks.length;
 
-    // Load existing docs
-    const docs = (await StorageService.get(STORAGE_KEYS.DOCS)) || [];
-    // Remove if duplicate id exists
+    // Load existing docs for this profile
+    const docs = (await this.getDocuments(pId)) || [];
     const updatedDocs = docs.filter((d) => d.id !== cleanDoc.id);
-    
-    // Hard cap: keep maximum 50 documents in knowledge base to prevent quota overflow
+
+    // Hard cap: keep maximum 50 documents per profile
     if (updatedDocs.length >= 50) {
       const removed = updatedDocs.pop();
-      const allExistingChunks = (await StorageService.get(STORAGE_KEYS.CHUNKS)) || [];
-      await StorageService.set(STORAGE_KEYS.CHUNKS, allExistingChunks.filter((c) => c.docId !== removed.id));
+      const allExistingChunks = (await this.getAllChunks(pId)) || [];
+      await StorageService.set(chunksKey, allExistingChunks.filter((c) => c.docId !== removed.id));
     }
 
     updatedDocs.unshift(cleanDoc);
 
-    // Load existing chunks
-    const allChunks = (await StorageService.get(STORAGE_KEYS.CHUNKS)) || [];
+    // Load existing chunks for this profile
+    const allChunks = (await this.getAllChunks(pId)) || [];
     const filteredChunks = allChunks.filter((c) => c.docId !== cleanDoc.id);
     filteredChunks.push(...chunks);
 
-    await StorageService.set(STORAGE_KEYS.DOCS, updatedDocs);
-    await StorageService.set(STORAGE_KEYS.CHUNKS, filteredChunks);
+    await StorageService.set(docsKey, updatedDocs);
+    await StorageService.set(chunksKey, filteredChunks);
 
     return { document: cleanDoc, chunksCount: chunks.length };
   }
 
   /**
-   * Get all ingested documents
+   * Get all ingested documents for a specific profile
    */
-  static async getDocuments() {
-    return (await StorageService.get(STORAGE_KEYS.DOCS)) || [];
+  static async getDocuments(profileId = null) {
+    const pId = await this.resolveProfileId(profileId);
+    const profileKey = STORAGE_KEYS.getRagDocsKey ? STORAGE_KEYS.getRagDocsKey(pId) : `gfaf_rag_docs_${pId}`;
+    let docs = await StorageService.get(profileKey);
+
+    // Legacy migration fallback for default profile
+    if ((!docs || !Array.isArray(docs) || docs.length === 0) && (pId === 'profile_default' || pId === 'default')) {
+      const legacyDocs = await StorageService.get('gfaf_rag_documents');
+      if (legacyDocs && Array.isArray(legacyDocs) && legacyDocs.length > 0) {
+        docs = legacyDocs;
+        await StorageService.set(profileKey, docs);
+      }
+    }
+
+    return docs || [];
   }
 
   /**
-   * Get all indexed chunks
+   * Get all indexed chunks for a specific profile
    */
-  static async getAllChunks() {
-    return (await StorageService.get(STORAGE_KEYS.CHUNKS)) || [];
+  static async getAllChunks(profileId = null) {
+    const pId = await this.resolveProfileId(profileId);
+    const chunksKey = STORAGE_KEYS.getRagChunksKey ? STORAGE_KEYS.getRagChunksKey(pId) : `gfaf_rag_chunks_${pId}`;
+    let chunks = await StorageService.get(chunksKey);
+
+    // Legacy migration fallback for default profile
+    if ((!chunks || !Array.isArray(chunks) || chunks.length === 0) && (pId === 'profile_default' || pId === 'default')) {
+      const legacyChunks = await StorageService.get('gfaf_rag_chunks');
+      if (legacyChunks && Array.isArray(legacyChunks) && legacyChunks.length > 0) {
+        chunks = legacyChunks;
+        await StorageService.set(chunksKey, chunks);
+      }
+    }
+
+    return chunks || [];
   }
 
   /**
-   * Delete a document and all its chunks
+   * Delete a document and all its chunks from a specific profile's Knowledge Base
    */
-  static async deleteDocument(docId) {
-    const docs = (await StorageService.get(STORAGE_KEYS.DOCS)) || [];
+  static async deleteDocument(docId, profileId = null) {
+    const pId = await this.resolveProfileId(profileId);
+    const docsKey = STORAGE_KEYS.getRagDocsKey ? STORAGE_KEYS.getRagDocsKey(pId) : `gfaf_rag_docs_${pId}`;
+    const chunksKey = STORAGE_KEYS.getRagChunksKey ? STORAGE_KEYS.getRagChunksKey(pId) : `gfaf_rag_chunks_${pId}`;
+
+    const docs = (await this.getDocuments(pId)) || [];
     const updatedDocs = docs.filter((d) => d.id !== docId);
 
-    const allChunks = (await StorageService.get(STORAGE_KEYS.CHUNKS)) || [];
+    const allChunks = (await this.getAllChunks(pId)) || [];
     const updatedChunks = allChunks.filter((c) => c.docId !== docId);
 
-    await StorageService.set(STORAGE_KEYS.DOCS, updatedDocs);
-    await StorageService.set(STORAGE_KEYS.CHUNKS, updatedChunks);
+    await StorageService.set(docsKey, updatedDocs);
+    await StorageService.set(chunksKey, updatedChunks);
 
     return true;
   }
 
   /**
-   * Reload & Sync a GitHub repository README document with its latest remote version
+   * Reload & Sync a GitHub repository README document for a profile
    */
-  static async syncGitHubDocument(docId) {
-    const docs = await this.getDocuments();
+  static async syncGitHubDocument(docId, profileId = null) {
+    const pId = await this.resolveProfileId(profileId);
+    const docs = await this.getDocuments(pId);
     const existingDoc = docs.find((d) => d.id === docId);
     if (!existingDoc) {
-      throw new Error(`Document with ID "${docId}" not found.`);
+      throw new Error(`Document with ID "${docId}" not found in this profile.`);
     }
 
     const repoUrl = existingDoc.repoUrl || (existingDoc.owner && existingDoc.repo ? `https://github.com/${existingDoc.owner}/${existingDoc.repo}` : null);
@@ -215,14 +262,15 @@ export class RagKnowledgeBaseService {
       updatedAt: new Date().toISOString()
     };
 
-    return await this.addDocument(updatedDoc);
+    return await this.addDocument(updatedDoc, pId);
   }
 
   /**
-   * Sync all indexed GitHub repositories to ensure READMEs are up to date
+   * Sync all indexed GitHub repositories for a profile
    */
-  static async syncAllGitHubDocuments() {
-    const docs = await this.getDocuments();
+  static async syncAllGitHubDocuments(profileId = null) {
+    const pId = await this.resolveProfileId(profileId);
+    const docs = await this.getDocuments(pId);
     const ghDocs = docs.filter((d) => d.type === 'github_readme' || d.source === 'github' || Boolean(d.repoUrl));
 
     const results = {
@@ -234,7 +282,7 @@ export class RagKnowledgeBaseService {
 
     for (const doc of ghDocs) {
       try {
-        await this.syncGitHubDocument(doc.id);
+        await this.syncGitHubDocument(doc.id, pId);
         results.synced++;
       } catch (err) {
         results.failed++;
@@ -246,11 +294,14 @@ export class RagKnowledgeBaseService {
   }
 
   /**
-   * Clear all knowledge base entries
+   * Clear all knowledge base entries for a profile
    */
-  static async clearKnowledgeBase() {
-    await StorageService.set(STORAGE_KEYS.DOCS, []);
-    await StorageService.set(STORAGE_KEYS.CHUNKS, []);
+  static async clearKnowledgeBase(profileId = null) {
+    const pId = await this.resolveProfileId(profileId);
+    const docsKey = STORAGE_KEYS.getRagDocsKey ? STORAGE_KEYS.getRagDocsKey(pId) : `gfaf_rag_docs_${pId}`;
+    const chunksKey = STORAGE_KEYS.getRagChunksKey ? STORAGE_KEYS.getRagChunksKey(pId) : `gfaf_rag_chunks_${pId}`;
+    await StorageService.set(docsKey, []);
+    await StorageService.set(chunksKey, []);
     return true;
   }
 }
