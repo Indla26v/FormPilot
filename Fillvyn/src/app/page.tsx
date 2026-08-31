@@ -7,6 +7,7 @@ import SpecsGuide from '@/components/SpecsGuide';
 import SetupGuide from '@/components/SetupGuide';
 import ComparisonSection from '@/components/ComparisonSection';
 import FaqSection from '@/components/FaqSection';
+import QuickLinksSection from '@/components/QuickLinksSection';
 import Footer from '@/components/Footer';
 
 export default function Home() {
@@ -21,6 +22,7 @@ export default function Home() {
       <SetupGuide />
       <ComparisonSection />
       <FaqSection />
+      <QuickLinksSection />
       <Footer />
     </main>
   );

@@ -65,6 +65,21 @@ export default function Footer() {
                 </a>
               </li>
               <li>
+                <a href="/feedback" className="hover:text-indigo-400 transition-colors">
+                  Community Feedback
+                </a>
+              </li>
+              <li>
+                <a href="/contact" className="hover:text-indigo-400 transition-colors">
+                  Contact Support
+                </a>
+              </li>
+              <li>
+                <a href="/privacy" className="hover:text-indigo-400 transition-colors">
+                  Privacy Policy
+                </a>
+              </li>
+              <li>
                 <a href="#faq" className="hover:text-indigo-400 transition-colors">
                   FAQ
                 </a>

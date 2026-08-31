@@ -86,6 +86,18 @@ export default function Navbar() {
             >
               FAQ
             </a>
+            <a
+              href="/feedback"
+              className="text-sm font-medium text-slate-600 hover:text-indigo-600 transition-colors"
+            >
+              Feedback
+            </a>
+            <a
+              href="/contact"
+              className="text-sm font-medium text-slate-600 hover:text-indigo-600 transition-colors"
+            >
+              Contact
+            </a>
           </nav>
 
           {/* CTA Buttons (Pill-shaped, Clean UI) */}
@@ -166,6 +178,27 @@ export default function Navbar() {
               className="px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-xl"
             >
               FAQ
+            </a>
+            <a
+              href="/feedback"
+              onClick={() => setMobileMenuOpen(false)}
+              className="px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-xl"
+            >
+              Feedback
+            </a>
+            <a
+              href="/contact"
+              onClick={() => setMobileMenuOpen(false)}
+              className="px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-xl"
+            >
+              Contact
+            </a>
+            <a
+              href="/privacy"
+              onClick={() => setMobileMenuOpen(false)}
+              className="px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-xl"
+            >
+              Privacy Policy
             </a>
             <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
               <a
