@@ -27,9 +27,9 @@ const FEATURES = [
   },
   {
     icon: Binary,
-    title: 'Intelligent Numeric & Strict Formatting',
-    description: 'Automatically detects input types and formatting rules. Converts "Immediate" to "0" for numeric day fields, and "14 - 18 LPA" to "16" for LPA-bounded numeric inputs.',
-    tag: 'Zero-Error DOM',
+    title: 'AI Column Evaluation & Strict Value Resolution',
+    description: 'Every column is read by AI. It evaluates field constraints, checks default profile values, inputs strict values [without extra text], and queries RAG for descriptive answers.',
+    tag: 'Strict Values & Zero Fluff',
     gradient: 'from-indigo-500 to-purple-600',
   },
   {

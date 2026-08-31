@@ -6,6 +6,7 @@
 
 import { StorageService } from '../StorageService.js';
 import { SecurityGuardService } from '../security/SecurityGuardService.js';
+import { ProfileValidatorService } from '../ProfileValidatorService.js';
 
 export const LLM_STORAGE_KEYS = {
   CONFIG: 'gfaf_llm_config'
@@ -91,50 +92,67 @@ async function fetchViaProxyOrDirect(endpoint, options = {}) {
     throw new DOMException('Aborted', 'AbortError');
   }
 
-  if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-    return new Promise((resolve, reject) => {
-      if (options.signal) {
-        options.signal.addEventListener('abort', () => {
-          reject(new DOMException('Aborted', 'AbortError'));
-        });
-      }
+  // Create an automatic fallback timeout (3s) if no custom signal provided
+  const timeoutMs = options.timeout || (options.signal ? 0 : 3000);
+  let timer = null;
+  let effectiveSignal = options.signal;
 
-      chrome.runtime.sendMessage({
-        action: 'PROXY_FETCH',
-        url: endpoint,
-        options: options
-      }, (res) => {
-        if (chrome.runtime.lastError) {
-          // Direct fetch fallback
-          fetch(endpoint, options)
-            .then(async (r) => {
-              let data;
-              try {
-                data = typeof r.json === 'function' ? await r.json() : await r.text();
-              } catch {
-                data = await r.text();
-              }
-              if (r.ok) resolve(data);
-              else reject(new Error(typeof data === 'string' ? data : JSON.stringify(data)));
-            })
-            .catch(reject);
-        } else if (res && res.success) {
-          resolve(res.data);
-        } else {
-          reject(new Error(res?.error || 'Request failed'));
+  if (timeoutMs > 0 && typeof AbortController !== 'undefined') {
+    const controller = new AbortController();
+    effectiveSignal = controller.signal;
+    timer = setTimeout(() => controller.abort(), timeoutMs);
+  }
+
+  const enhancedOptions = { ...options, signal: effectiveSignal };
+
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+      return await new Promise((resolve, reject) => {
+        if (effectiveSignal) {
+          effectiveSignal.addEventListener('abort', () => {
+            reject(new DOMException('Aborted or timed out', 'AbortError'));
+          });
         }
+
+        chrome.runtime.sendMessage({
+          action: 'PROXY_FETCH',
+          url: endpoint,
+          options: enhancedOptions
+        }, (res) => {
+          if (chrome.runtime.lastError) {
+            // Direct fetch fallback
+            fetch(endpoint, enhancedOptions)
+              .then(async (r) => {
+                let data;
+                try {
+                  data = typeof r.json === 'function' ? await r.json() : await r.text();
+                } catch {
+                  data = await r.text();
+                }
+                if (r.ok) resolve(data);
+                else reject(new Error(typeof data === 'string' ? data : JSON.stringify(data)));
+              })
+              .catch(reject);
+          } else if (res && res.success) {
+            resolve(res.data);
+          } else {
+            reject(new Error(res?.error || 'Request failed'));
+          }
+        });
       });
-    });
-  } else {
-    const r = await fetch(endpoint, options);
-    let data;
-    try {
-      data = typeof r.json === 'function' ? await r.json() : await r.text();
-    } catch {
-      data = await r.text();
+    } else {
+      const r = await fetch(endpoint, enhancedOptions);
+      let data;
+      try {
+        data = typeof r.json === 'function' ? await r.json() : await r.text();
+      } catch {
+        data = await r.text();
+      }
+      if (!r.ok) throw new Error(typeof data === 'string' ? data : JSON.stringify(data));
+      return data;
     }
-    if (!r.ok) throw new Error(typeof data === 'string' ? data : JSON.stringify(data));
-    return data;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -615,6 +633,498 @@ ALIGNMENT INSTRUCTION: Tailor and align your response to directly emphasize the 
   }
 
   /**
+   * AI-First Form Question Evaluation & Decision Engine
+   * Evaluates any form question (profile attribute, choices, or open-ended essay)
+   * and returns strict data, matching options, or synthesized RAG response.
+   */
+  static async evaluateAndFillQuestion({
+    question,
+    fieldType = 'text',
+    options = [],
+    profile,
+    retrievedChunks = [],
+    jobDescription = '',
+    customInstructions = '',
+    config: customConfig = null,
+    signal = null
+  }) {
+    if (!question || !profile) {
+      return { decisionType: 'none', value: '', confidence: 0 };
+    }
+
+    const savedConfig = await this.getConfig();
+    const config = customConfig ? { ...savedConfig, ...customConfig } : savedConfig;
+    const provider = this.getProvider(config.provider);
+
+    const candidateName = profile.personal?.fullName || 'the candidate';
+    const skillsList = (profile.skills || []).map((s) => {
+      if (typeof s === 'object' && s !== null) {
+        const parts = [s.name];
+        if (s.level) parts.push(`(${s.level})`);
+        if (s.years) parts.push(`${s.years} yr(s)`);
+        if (s.rating) parts.push(`[${s.rating}/10]`);
+        return parts.join(' - ');
+      }
+      return String(s);
+    }).join(', ');
+
+    // Format profile context for AI reasoning
+    const profileContext = {
+      personal: profile.personal || {},
+      education: profile.education || {},
+      professional: profile.professional || {},
+      links: profile.links || {},
+      skills: skillsList,
+      customFields: profile.customFields || [],
+      smartAnswers: (profile.smartAnswers || []).map((qa) => ({ q: qa.keywords?.join(', '), a: qa.answer }))
+    };
+
+    const deduplicatedChunks = deduplicateContextChunks(retrievedChunks);
+    const ragContextText = deduplicatedChunks
+      .map((c, i) => `[Source ${i + 1}: ${c.docTitle} - ${c.sectionTitle || 'General'}]\n${c.text}`)
+      .join('\n\n');
+
+    const pers = profile.personal || {};
+    const edu = profile.education || {};
+    const prof = profile.professional || {};
+    const links = profile.links || {};
+
+    const expYears = prof.totalExperienceYears !== undefined && prof.totalExperienceYears !== null && prof.totalExperienceYears !== ''
+      ? String(prof.totalExperienceYears).trim()
+      : '0';
+    const curCtcLpa = prof.currentCtcLpa !== undefined && prof.currentCtcLpa !== null && prof.currentCtcLpa !== ''
+      ? String(prof.currentCtcLpa).trim()
+      : '0';
+    const noticeText = prof.noticePeriod !== undefined && prof.noticePeriod !== null && prof.noticePeriod !== ''
+      ? String(prof.noticePeriod).trim()
+      : 'Immediate';
+    const noticeDays = prof.noticePeriodDays !== undefined && prof.noticePeriodDays !== null && prof.noticePeriodDays !== ''
+      ? String(prof.noticePeriodDays).trim()
+      : '0';
+
+    const systemPrompt = `You are the AI Autopilot Form-Filling Decision Engine for candidate ${candidateName}.
+Your objective is to evaluate form questions and decide the exact, optimal response based on the candidate's profile, skills, and resume/project context.
+
+STRICT DECISION RULES:
+1. STANDARD PROFILE ATTRIBUTES (Strict Data Extraction):
+   - If the question asks for a standard personal, educational, professional, or social link attribute (e.g. Full Name, Email, Phone, Location, College, Degree, Graduation Year, CGPA/Percentage, Total Work Experience, Current Organization, Current Role, Current CTC, Expected CTC, Notice Period, LinkedIn URL, GitHub URL, Portfolio):
+   - Extract the EXACT matching field from the Candidate Profile.
+   - Enforce STRICT VALUE ONLY: Output ONLY the raw value with ZERO preamble, ZERO explanations, and ZERO quotes.
+   - Critical Rules for Experience, CTC, and Notice Period:
+     * TOTAL WORK EXPERIENCE -> "${expYears}" (DO NOT calculate from individual skill practice years. Use "${expYears}").
+     * CURRENT CTC (LPA) -> "${curCtcLpa}" (Candidate is not currently employed or at ${curCtcLpa} LPA).
+     * CURRENT CTC (INR digits) -> "${prof.currentCtcNumeric || '0'}".
+     * EXPECTED CTC (LPA) -> "${prof.expectedCtcLpa || '10'}".
+     * EXPECTED CTC (INR digits) -> "${prof.expectedCtcNumeric || '1000000'}".
+     * NOTICE PERIOD (text) -> "${noticeText}".
+     * NOTICE PERIOD (in days / numeric) -> "${noticeDays}".
+     * Graduation year -> "${edu.graduationYear || '2025'}".
+     * 10th Marks -> "${edu.tenthPercentageNumeric || edu.tenthPercentage || '92.5'}".
+
+2. CHOICE QUESTIONS (Radio Buttons, Checkboxes, Dropdowns):
+   - If 'options' list is provided:
+   - For single-choice ('radio' / 'dropdown'): Select the SINGLE EXACT matching string from the 'options' list that represents the candidate's profile/skills/status.
+   - For multi-choice ('checkbox'): Select an ARRAY of EXACT strings from the 'options' list matching the candidate's skills and experience.
+   - NEVER invent options outside the provided 'options' list.
+
+3. OPEN-ENDED / TECHNICAL / ESSAY QUESTIONS:
+   - For questions requiring descriptions, project architecture, debugging stories, or explanations:
+   - Synthesize a grounded, humanized first-person ("I", "my") answer strictly based on the candidate's actual projects, resume chunks, and listed skills.
+   - Do not hallucinate unlisted third-party tools.
+
+OUTPUT FORMAT:
+You MUST respond with valid JSON strictly matching this schema:
+{
+  "decisionType": "strict_profile" | "choice_selection" | "rag_synthesis",
+  "value": "string value" or ["array", "of", "options"],
+  "confidence": 0.95
+}`;
+
+    let userPrompt = `CANDIDATE PRIMARY PROFILE FACTS (GROUND TRUTH):
+- Full Name: "${pers.fullName || 'Alex Morgan'}"
+- Email: "${pers.email || ''}"
+- Phone: "${pers.phone || ''}"
+- Location: "${pers.currentLocation || pers.city || ''}"
+- College / University: "${edu.collegeName || ''}"
+- Degree: "${edu.degree || ''}"
+- Graduation Year: "${edu.graduationYear || '2025'}"
+- Total Work Experience (Years): "${expYears}"
+- Current Organization: "${prof.currentOrganization || 'NA'}"
+- Current Role: "${prof.currentRole || 'NA'}"
+- Current CTC (in LPA): "${curCtcLpa}"
+- Expected CTC (in LPA): "${prof.expectedCtcLpa || '10'}"
+- Expected Fixed Package (in INR): "${prof.expectedCtcNumeric || '1000000'}"
+- Notice Period (Text): "${noticeText}"
+- Notice Period (in Days): "${noticeDays}"
+- Can Join Immediately: "${prof.canJoinImmediately || 'Yes'}"
+- LinkedIn URL: "${links.linkedin || ''}"
+- GitHub URL: "${links.github || ''}"
+
+CANDIDATE PROFILE DATA (JSON):
+\`\`\`json
+${JSON.stringify(profileContext, null, 2)}
+\`\`\`
+
+RETRIEVED RESUME & PROJECT RAG CONTEXT:
+${ragContextText || 'No external document chunks. Use candidate profile data.'}
+`;
+
+    if (jobDescription && jobDescription.trim()) {
+      userPrompt += `\nJOB DESCRIPTION ALIGNMENT CONTEXT:\n"""\n${jobDescription.trim().slice(0, 3000)}\n"""\n`;
+    }
+
+    userPrompt += `\nFORM QUESTION TO EVALUATE:
+Question Text: "${question}"
+Field Type: "${fieldType}"
+Available Options: ${options && options.length > 0 ? JSON.stringify(options) : 'None (Text / Number input)'}
+${customInstructions ? `Special User Instruction: "${customInstructions}"\n` : ''}
+
+Determine the decisionType, extract or synthesize the value, and output ONLY valid JSON:`;
+
+    try {
+      const rawOutput = await provider.generate({
+        prompt: userPrompt,
+        systemPrompt: systemPrompt,
+        config: { ...config, temperature: 0.1, maxTokens: 1000 },
+        signal: signal || config?.signal
+      });
+
+      // Parse JSON from output
+      let parsed = this._extractJsonDecision(rawOutput, options, fieldType);
+      if (!parsed && rawOutput && rawOutput.trim()) {
+        const cleanText = rawOutput.trim().replace(/^["']|["']$/g, '');
+        parsed = {
+          decisionType: fieldType === 'checkbox' ? 'choice_selection' : (cleanText.length > 60 ? 'rag_synthesis' : 'strict_profile'),
+          value: fieldType === 'checkbox' ? [cleanText] : cleanText,
+          confidence: 0.90
+        };
+      }
+
+      if (parsed) {
+        // Ground decision against ProfileValidatorService to prevent hallucinations on profile facts
+        const isNumericField = fieldType === 'number' || question.toLowerCase().includes('in numbers') || question.toLowerCase().includes('in days') || question.toLowerCase().includes('digits');
+        const grounded = ProfileValidatorService.validateAndGroundDecision(
+          question,
+          parsed,
+          profile,
+          isNumericField,
+          fieldType
+        );
+        return grounded;
+      }
+    } catch (err) {
+      console.warn('[GFAF] AI question evaluation error:', err.message || err);
+    }
+
+    // Direct fallback grounded via ProfileValidatorService
+    return ProfileValidatorService.validateAndGroundDecision(
+      question,
+      { decisionType: 'none', value: '', confidence: 0 },
+      profile,
+      fieldType === 'number',
+      fieldType
+    );
+  }
+
+  /**
+   * Batch evaluate multiple form questions in a single fast LLM prompt
+   */
+  static async evaluateFormBatch({
+    questions = [],
+    profile,
+    retrievedChunks = [],
+    jobDescription = '',
+    config: customConfig = null,
+    signal = null
+  }) {
+    if (!questions || questions.length === 0 || !profile) {
+      return [];
+    }
+
+    const savedConfig = await this.getConfig();
+    const config = customConfig ? { ...savedConfig, ...customConfig } : savedConfig;
+    const provider = this.getProvider(config.provider);
+
+    const candidateName = profile.personal?.fullName || 'the candidate';
+    const skillsList = (profile.skills || []).map((s) => (typeof s === 'object' && s !== null ? s.name : String(s))).join(', ');
+
+    const profileContext = {
+      personal: profile.personal || {},
+      education: profile.education || {},
+      professional: profile.professional || {},
+      links: profile.links || {},
+      skills: skillsList,
+      customFields: profile.customFields || [],
+      smartAnswers: (profile.smartAnswers || []).map((qa) => ({ q: qa.keywords?.join(', '), a: qa.answer }))
+    };
+
+    const deduplicatedChunks = deduplicateContextChunks(retrievedChunks);
+    const ragContextText = deduplicatedChunks
+      .map((c, i) => `[Source ${i + 1}: ${c.docTitle} - ${c.sectionTitle || 'General'}]\n${c.text}`)
+      .join('\n\n');
+
+    const systemPrompt = `You are the AI Autopilot Form Decision Engine.
+Evaluate each form question and output a JSON array of decisions.
+Enforce STRICT VALUES for profile attributes (Name, Email, Phone, College, Experience, CTC, Notice Period, URLs).`;
+
+    const questionsPayload = questions.map((q, idx) => ({
+      id: q.id !== undefined ? q.id : idx,
+      question: q.questionText || q.question || '',
+      fieldType: q.fieldType || (q.options && q.options.length > 0 ? (q.isMultiSelect ? 'checkbox' : 'radio') : 'text'),
+      options: q.options || []
+    }));
+
+    const userPrompt = `CANDIDATE PROFILE:
+${JSON.stringify(profile, null, 2)}
+
+QUESTIONS:
+${JSON.stringify(questions, null, 2)}
+
+Output ONLY valid JSON array with decisions for each question id:`;
+
+    try {
+      const rawOutput = await provider.generate({
+        prompt: userPrompt,
+        systemPrompt: systemPrompt,
+        config: { ...config, temperature: 0.1, maxTokens: 2500 },
+        signal: signal || config?.signal
+      });
+
+      const jsonMatch = rawOutput.match(/\[\s*\{[\s\S]*\}\s*\]/);
+      if (jsonMatch) {
+        const parsedArray = JSON.parse(jsonMatch[0]);
+        if (Array.isArray(parsedArray)) {
+          return parsedArray.map((item) => {
+            const originalQ = questions.find((q) => q.id === item.id);
+            if (originalQ) {
+              return ProfileValidatorService.validateAndGroundDecision(
+                originalQ.question,
+                item,
+                profile,
+                originalQ.fieldType === 'number',
+                originalQ.fieldType
+              );
+            }
+            return item;
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[GFAF] Batch AI evaluation error:', err.message || err);
+    }
+
+    return [];
+  }
+
+  /**
+   * AI Post-Validation & Constraint Correction Engine
+   * Validates a field's filled value against dynamic form validation errors, min/max limits,
+   * length restrictions, or reactive error messages reflected in the DOM.
+   */
+  static async validateAndCorrectEntry({
+    question,
+    currentValue,
+    validationError = '',
+    constraints = {},
+    profile,
+    config: customConfig = null,
+    signal = null
+  }) {
+    const valStr = String(currentValue !== undefined && currentValue !== null ? currentValue : '').trim();
+
+    // 1. Profile Ground Truth Check (Prevents experience / CTC / notice period mismatches)
+    if (profile) {
+      const profileValidation = ProfileValidatorService.validateFilledValue(question, valStr, profile);
+      if (!profileValidation.isValid && profileValidation.correctedValue !== undefined) {
+        return {
+          isValid: false,
+          correctedValue: profileValidation.correctedValue,
+          reason: profileValidation.reason
+        };
+      }
+    }
+
+    // 2. Fast Deterministic Attribute Checks (Min / Max / MaxLength)
+    if (constraints.max !== undefined && constraints.max !== null && constraints.max !== '') {
+      const maxNum = parseFloat(constraints.max);
+      const currNum = parseFloat(valStr);
+      if (!isNaN(maxNum) && !isNaN(currNum) && currNum > maxNum) {
+        return {
+          isValid: false,
+          correctedValue: String(maxNum),
+          reason: `Value clamped to maximum limit (${maxNum})`
+        };
+      }
+    }
+
+    if (constraints.min !== undefined && constraints.min !== null && constraints.min !== '') {
+      const minNum = parseFloat(constraints.min);
+      const currNum = parseFloat(valStr);
+      if (!isNaN(minNum) && !isNaN(currNum) && currNum < minNum) {
+        return {
+          isValid: false,
+          correctedValue: String(minNum),
+          reason: `Value raised to minimum limit (${minNum})`
+        };
+      }
+    }
+
+    if (constraints.maxlength && valStr.length > constraints.maxlength) {
+      return {
+        isValid: false,
+        correctedValue: valStr.slice(0, constraints.maxlength),
+        reason: `Value trimmed to max character length (${constraints.maxlength})`
+      };
+    }
+
+    if (!validationError && !constraints.hasError) {
+      return { isValid: true, correctedValue: valStr, reason: 'Valid entry' };
+    }
+
+    // 3. AI Semantic Error Correction
+    const savedConfig = await this.getConfig();
+    const config = customConfig ? { ...savedConfig, ...customConfig } : savedConfig;
+    const provider = this.getProvider(config.provider);
+
+    const systemPrompt = `You are the AI Form Post-Validation and Error Correction Engine.
+A form input was filled with a value, but the form emitted an error message, warning, or failed a validation constraint.
+
+YOUR OBJECTIVE:
+Analyze the question, current value, the validation error, and constraints.
+Determine the corrected value that strictly satisfies the form's requirement while accurately reflecting the candidate.
+
+RULES:
+1. If the error specifies numeric bounds (e.g., "Must be between 1 and 10", "Must be less than 50", "Must be greater than 0"):
+   - Adjust the number to fit strictly within the allowed range.
+2. If the error specifies format (e.g., "Must be a whole number", "Must be an integer"):
+   - Convert to integer (e.g. 92.5 -> 92 or 0 for immediate notice period).
+3. If the error specifies LPA vs INR (e.g., 1000000 entered when 10 LPA expected, or 10 entered when full INR expected):
+   - Correct the unit scale appropriately.
+4. Output STRICT CORRECTED VALUE without any extra text or conversational fluff.
+
+OUTPUT FORMAT:
+Respond with valid JSON:
+{
+  "isValid": false,
+  "correctedValue": "exact corrected value",
+  "reason": "short explanation of the fix"
+}`;
+
+    const prof = profile?.professional || {};
+    const edu = profile?.education || {};
+
+    const userPrompt = `QUESTION: "${question}"
+CURRENT VALUE ENTERED: "${valStr}"
+VALIDATION ERROR / CONSTRAINT FROM FORM: "${validationError}"
+EXPLICIT ATTRIBUTES: ${JSON.stringify(constraints)}
+CANDIDATE FACTS:
+- Total Experience: ${prof.totalExperienceYears !== undefined && prof.totalExperienceYears !== '' ? prof.totalExperienceYears : '0'} year(s)
+- Current CTC: ${prof.currentCtcLpa !== undefined && prof.currentCtcLpa !== '' ? prof.currentCtcLpa : '0'} LPA (${prof.currentCtcNumeric || '0'} INR)
+- Expected CTC: ${prof.expectedCtcLpa || '10'} LPA (${prof.expectedCtcNumeric || '1000000'} INR)
+- Notice Period: ${prof.noticePeriod || 'Immediate'} (${prof.noticePeriodDays || '0'} days)
+- 10th Marks: ${edu.tenthPercentageNumeric || '92.5'}
+- Graduation Year: ${edu.graduationYear || '2025'}
+
+Determine the corrected value and output JSON:`;
+
+    try {
+      const rawOutput = await provider.generate({
+        prompt: userPrompt,
+        systemPrompt: systemPrompt,
+        config: { ...config, temperature: 0.1, maxTokens: 400 },
+        signal: signal || config?.signal
+      });
+
+      const jsonMatch = rawOutput.match(/\{[\s\S]*"correctedValue"[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed && parsed.correctedValue !== undefined) {
+          return {
+            isValid: false,
+            correctedValue: String(parsed.correctedValue).trim(),
+            reason: parsed.reason || 'AI post-validation correction applied'
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('[GFAF] AI post-validation error:', err.message || err);
+    }
+
+    // Fallback deterministic regex correction for standard numeric constraint errors
+    const normErr = validationError.toLowerCase();
+    if (normErr.includes('less than') || normErr.includes('maximum') || normErr.includes('at most')) {
+      const limitMatch = normErr.match(/\b\d+(\.\d+)?\b/);
+      if (limitMatch) {
+        const limit = parseFloat(limitMatch[0]);
+        const curr = parseFloat(valStr);
+        if (!isNaN(curr) && curr > limit) {
+          return { isValid: false, correctedValue: String(limit), reason: `Clamped to limit ${limit}` };
+        }
+      }
+    }
+
+    if (normErr.includes('greater than') || normErr.includes('minimum') || normErr.includes('at least')) {
+      const limitMatch = normErr.match(/\b\d+(\.\d+)?\b/);
+      if (limitMatch) {
+        const limit = parseFloat(limitMatch[0]);
+        const curr = parseFloat(valStr);
+        if (!isNaN(curr) && curr < limit) {
+          return { isValid: false, correctedValue: String(limit), reason: `Raised to limit ${limit}` };
+        }
+      }
+    }
+
+    if (normErr.includes('whole number') || normErr.includes('integer')) {
+      const intVal = parseInt(valStr.replace(/\D/g, '') || '0', 10);
+      return { isValid: false, correctedValue: String(intVal), reason: 'Converted to whole number' };
+    }
+
+    return { isValid: true, correctedValue: valStr, reason: 'Maintained current value' };
+  }
+
+  /**
+   * Helper to safely extract JSON decision from LLM output
+   */
+  static _extractJsonDecision(rawText, options = [], fieldType = 'text') {
+    if (!rawText || typeof rawText !== 'string') return null;
+
+    try {
+      // 1. Try direct JSON parse
+      const trimmed = rawText.trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        return JSON.parse(trimmed);
+      }
+
+      // 2. Try fenced markdown json block
+      const mdJsonMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (mdJsonMatch && mdJsonMatch[1]) {
+        return JSON.parse(mdJsonMatch[1].trim());
+      }
+
+      // 3. Try regex substring match for object
+      const objMatch = rawText.match(/\{[\s\S]*"value"[\s\S]*\}/);
+      if (objMatch) {
+        return JSON.parse(objMatch[0]);
+      }
+    } catch (e) {}
+
+    // 4. If options provided and rawText matches one of the options
+    if (options && options.length > 0) {
+      const cleanRaw = rawText.trim().toLowerCase().replace(/^["']|["']$/g, '');
+      const matchedOpt = options.find((opt) => opt.toLowerCase() === cleanRaw || opt.toLowerCase().includes(cleanRaw) || cleanRaw.includes(opt.toLowerCase()));
+      if (matchedOpt) {
+        return {
+          decisionType: 'choice_selection',
+          value: fieldType === 'checkbox' ? [matchedOpt] : matchedOpt,
+          confidence: 0.92
+        };
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Pre-warm / wake up local LLM model into VRAM / Memory
    */
   static async wakeUpModel(modelName = null) {
@@ -672,3 +1182,4 @@ ALIGNMENT INSTRUCTION: Tailor and align your response to directly emphasize the 
     }
   }
 }
+

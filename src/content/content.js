@@ -270,17 +270,13 @@
     }
 
     static async getActiveProfile() {
-      this._initStorageListener();
-      if (this._cachedActiveProfile) return this._cachedActiveProfile;
       const profiles = await this.getProfiles();
       const activeId = await this.get(STORAGE_KEYS.ACTIVE_PROFILE_ID);
       const active = profiles.find((p) => p.id === activeId) || profiles[0] || DEFAULT_PROFILE;
-      this._cachedActiveProfile = active;
       return active;
     }
 
     static async setActiveProfileId(id) {
-      this._cachedActiveProfile = null;
       await this.set(STORAGE_KEYS.ACTIVE_PROFILE_ID, id);
     }
 
@@ -1340,7 +1336,7 @@
       }
     }
 
-    static highlightContainer(containerEl, matchInfo) {
+    static highlightContainer(containerEl, matchInfo = {}) {
       if (!containerEl) return;
       this.setProcessingState(containerEl, false);
 
@@ -1349,10 +1345,16 @@
         ? (containerEl.closest('div[role="listitem"], div[jsmodel], div[data-automation-id="questionItem"], .office-form-question') || containerEl)
         : containerEl;
 
-      outerQuestion.classList.add('gfaf-filled-highlight');
+      if (matchInfo.hasConflict) {
+        outerQuestion.classList.add('gfaf-conflict-highlight');
+        outerQuestion.classList.remove('gfaf-filled-highlight');
+      } else {
+        outerQuestion.classList.add('gfaf-filled-highlight');
+        outerQuestion.classList.remove('gfaf-conflict-highlight');
+      }
 
       // Strip any inner/duplicate badges across all children inside this question container
-      const existingBadges = outerQuestion.querySelectorAll ? outerQuestion.querySelectorAll('.gfaf-match-badge') : [];
+      const existingBadges = outerQuestion.querySelectorAll ? outerQuestion.querySelectorAll('.gfaf-badge-container, .gfaf-match-badge, .gfaf-info-pill, .gfaf-conflict-badge') : [];
       if (existingBadges && existingBadges.length > 0) {
         existingBadges.forEach((b) => {
           if (typeof b.remove === 'function') {
@@ -1363,22 +1365,58 @@
         });
       }
 
-      const badge = document.createElement('div');
-      badge.className = 'gfaf-match-badge';
       if (outerQuestion.style) {
         outerQuestion.style.position = 'relative';
       }
-      outerQuestion.appendChild(badge);
 
-      const confidencePct = Math.round((matchInfo.confidence || 1.0) * 100);
-      badge.textContent = matchInfo.isRag ? 'Auto-filled via AI' : `Auto-filled (${confidencePct}%)`;
+      const badgeContainer = document.createElement('div');
+      badgeContainer.className = 'gfaf-badge-container';
+
+      // 1. Conflict Badge or Context Info Pill
+      if (matchInfo.hasConflict && matchInfo.conflictMessage) {
+        const conflictPill = document.createElement('div');
+        conflictPill.className = 'gfaf-conflict-badge';
+        conflictPill.textContent = matchInfo.conflictMessage;
+        badgeContainer.appendChild(conflictPill);
+
+        const statusBadge = document.createElement('div');
+        statusBadge.className = 'gfaf-match-badge gfaf-match-badge-conflict';
+        statusBadge.textContent = 'Not Filled (Conflict)';
+        badgeContainer.appendChild(statusBadge);
+      } else {
+        if (matchInfo.infoMessage) {
+          const infoPill = document.createElement('div');
+          infoPill.className = 'gfaf-info-pill';
+          infoPill.textContent = matchInfo.infoMessage;
+          badgeContainer.appendChild(infoPill);
+        }
+
+        // 2. Status Badge
+        const badge = document.createElement('div');
+        badge.className = 'gfaf-match-badge';
+        const confidencePct = Math.round((matchInfo.confidence || 1.0) * 100);
+        badge.textContent = matchInfo.isRag ? 'Auto-filled via AI' : `Auto-filled (${confidencePct}%)`;
+        badgeContainer.appendChild(badge);
+      }
+
+      outerQuestion.appendChild(badgeContainer);
     }
 
     static showStatusToast(message, type = 'success') {
       showToast(message, type === true ? 'success' : type === false ? 'error' : type);
     }
 
-    static async synthesizeAiAnswer(questionText, profile, customInstructions = '', currentFieldValue = '') {
+    /**
+     * AI-First Form Question Evaluator & Decision Engine (In-Browser Runtime)
+     */
+    static async evaluateQuestionWithAi({
+      questionText,
+      fieldType = 'text',
+      options = [],
+      profile,
+      customInstructions = '',
+      currentFieldValue = ''
+    }) {
       try {
         const pId = profile?.id || 'profile_default';
         const profileChunks = await LocalStorageService.get(`gfaf_rag_chunks_${pId}`);
@@ -1392,13 +1430,12 @@
 
         const chatKey = (questionText || '').trim().toLowerCase();
         let history = fieldChatHistory.get(chatKey) || [];
-
         const isFollowUp = Boolean(customInstructions && customInstructions.trim() && (history.length > 0 || currentFieldValue));
 
-        // Question-Hash Response Cache Check
+        // Question-Hash Cache Check
         const isInitialGeneration = !isFollowUp && !currentFieldValue && (!history || history.length === 0);
         const cacheKey = isInitialGeneration
-          ? `q:${chatKey}|p:${pId}|jd:${(sessionJobDescription || '').slice(0, 100)}|prov:${llmConfig.provider}`
+          ? `q:${chatKey}|p:${pId}|type:${fieldType}|jd:${(sessionJobDescription || '').slice(0, 100)}|prov:${llmConfig.provider}`
           : null;
 
         if (cacheKey && window.__GFAF_RESPONSE_CACHE__?.has(cacheKey)) {
@@ -1425,304 +1462,311 @@
           contextStr = topChunks.map((c, i) => `[Source ${i + 1}: ${c.docTitle || 'Doc'}]\n${c.text}`).join('\n\n');
         }
 
+        const candidateName = profile.personal?.fullName || 'the candidate';
         const skillsFormatted = (profile.skills || []).map((s) => {
           if (typeof s === 'object' && s !== null) {
             const parts = [s.name];
             if (s.level) parts.push(`(${s.level})`);
             if (s.years) parts.push(`${s.years} yr(s)`);
+            if (s.rating) parts.push(`[${s.rating}/10]`);
             return parts.join(' - ');
           }
           return String(s);
         }).join(', ');
 
-        if (!contextStr) {
-          contextStr = `Candidate Skills: ${skillsFormatted}\nCurrent Role: ${profile.professional?.currentRole || 'Software Engineer'}\nExperience: ${profile.professional?.totalExperienceYears || '1'} year(s)\nEducation: ${profile.education?.degree || 'B.Tech'} from ${profile.education?.collegeName || 'University'}`;
-        }
+        const pers = profile.personal || {};
+        const edu = profile.education || {};
+        const prof = profile.professional || {};
+        const links = profile.links || {};
 
-        const candidateName = profile.personal?.fullName || 'the candidate';
-        const systemPrompt = `You are ${candidateName}, a real software engineer filling out an application form question.
-Answer in the first person ("I", "my").
+        const expYears = prof.totalExperienceYears !== undefined && prof.totalExperienceYears !== null && prof.totalExperienceYears !== ''
+          ? String(prof.totalExperienceYears).trim()
+          : '0';
+        const curCtcLpa = prof.currentCtcLpa !== undefined && prof.currentCtcLpa !== null && prof.currentCtcLpa !== ''
+          ? String(prof.currentCtcLpa).trim()
+          : '0';
+        const noticeText = prof.noticePeriod !== undefined && prof.noticePeriod !== null && prof.noticePeriod !== ''
+          ? String(prof.noticePeriod).trim()
+          : 'Immediate';
+        const noticeDays = prof.noticePeriodDays !== undefined && prof.noticePeriodDays !== null && prof.noticePeriodDays !== ''
+          ? String(prof.noticePeriodDays).trim()
+          : '0';
 
-STRICT GROUNDING & ANTI-HALLUCINATION POLICY:
-1. ONLY USE TOOLS FROM THE CANDIDATE'S RESUME & PROFILE:
-   - You MUST ONLY mention programming languages, libraries, frameworks, cloud services, and tools that are EXPLICITLY present in the candidate's Profile Skills or Retrieved Resume/Project Context below.
-   - NEVER invent, assume, or hallucinate external tools or frameworks (e.g. NEVER make up tools like Cypress, Selenium, Playwright, Jest, Mocha, Docker, Kubernetes, Jenkins, AWS, React Native, etc. unless they appear in the candidate's provided skills or resume context).
-2. ADAPTING TO DOMAIN-SPECIFIC QUESTIONS (Testing, Cloud, DevOps, CI/CD, etc.):
-   - If a question asks about a specific area (such as "software testing", "test automation", "cloud deployment", or "CI/CD") and the candidate does not list dedicated third-party tools for it:
-     - DO NOT invent unlisted third-party tools.
-     - Instead, explain how the candidate implemented, tested, validated, or built systems using their ACTUAL listed stack (e.g. writing custom test scripts, API validation routines, TypeScript type-safety guards, integration tests, or unit testing in their listed language like Python / Node.js / Java).
-3. 100% FACTUAL HONESTY:
-   - Stay strictly faithful to the candidate's real projects, metrics, and background. Do not claim experience with technologies the candidate has never worked with.
+        const profileContext = {
+          personal: profile.personal || {},
+          education: profile.education || {},
+          professional: profile.professional || {},
+          links: profile.links || {},
+          skills: skillsFormatted,
+          customFields: profile.customFields || [],
+          smartAnswers: (profile.smartAnswers || []).map((qa) => ({ q: qa.keywords?.join(', '), a: qa.answer }))
+        };
 
-HUMANIZED WRITING STYLE & TONE:
-1. Write naturally, authentically, and conversationally, exactly as a human developer would write in a job application.
-2. Avoid AI cliches and buzzwords (e.g. do NOT use words like "delve", "spearhead", "testament", "tapestry", "in today's fast-paced landscape", "thrilled to", "robust", "game-changer", or generic textbook explanations).
-3. Be direct, clear, and practical. Jump straight into the explanation without throat-clearing intros or fluffy conclusions.
-4. Ground your response in real implementation decisions, technical details, and actual problem-solving from the candidate's actual projects.
-5. Strictly adhere to any word count or constraint in the prompt.
-6. Do NOT include markdown code block envelopes, preamble (e.g. "Here is my answer:"), or emojis. Output ONLY the clean, raw text ready to be pasted directly into the form.`;
+        const systemPrompt = `You are the AI Autopilot Form-Filling Decision Engine for candidate ${candidateName}.
+Your task is to evaluate form questions and decide the exact value or options to fill based on the candidate profile and resume/project context.
 
-        if (customInstructions && customInstructions.trim()) {
-          history.push({ role: 'user', content: customInstructions.trim() });
-        }
+STRICT DECISION RULES:
+1. STANDARD PROFILE ATTRIBUTES (Strict Data Extraction):
+   - If the question asks for a standard attribute (Full Name, Email, Phone, Location, College, Degree, Graduation Year, CGPA/Percentage, Total Work Experience, Current Organization, Current Role, Current CTC, Expected CTC, Notice Period, LinkedIn URL, GitHub URL, Portfolio):
+   - Extract the EXACT matching value from the Candidate Profile.
+   - Enforce STRICT VALUE ONLY: Output ONLY the clean value with ZERO conversational filler, ZERO preamble, and ZERO quotes.
+   - Critical Rules for Experience, CTC, and Notice Period:
+     * TOTAL WORK EXPERIENCE -> "${expYears}" (DO NOT use skill practice years for Total Experience. Use "${expYears}").
+     * CURRENT CTC (LPA) -> "${curCtcLpa}" (Candidate is not currently employed or at ${curCtcLpa} LPA).
+     * CURRENT CTC (INR digits) -> "${prof.currentCtcNumeric || '0'}".
+     * EXPECTED CTC (LPA) -> "${prof.expectedCtcLpa || '10'}".
+     * EXPECTED CTC (INR digits) -> "${prof.expectedCtcNumeric || '1000000'}".
+     * NOTICE PERIOD (text) -> "${noticeText}".
+     * NOTICE PERIOD (in days / numeric) -> "${noticeDays}".
+     * Graduation year -> "${edu.graduationYear || '2025'}".
+     * 10th Marks -> "${edu.tenthPercentageNumeric || edu.tenthPercentage || '92.5'}".
 
-        let baseContextPrompt = `Candidate Profile:
-Name: ${candidateName}
-Skills: ${skillsFormatted}
-Experience Context:
-${contextStr}
+2. CHOICE QUESTIONS (Radio Buttons, Checkboxes, Dropdowns):
+   - If 'options' list is provided:
+   - For single-choice ('radio' / 'dropdown'): Select the SINGLE EXACT matching string from the 'options' list that represents the candidate.
+   - For multi-choice ('checkbox'): Select an ARRAY of EXACT strings from the 'options' list matching the candidate's skills.
 
-Question:
-"${questionText}"
+3. OPEN-ENDED / TECHNICAL / ESSAY QUESTIONS:
+   - For technical questions or essays, synthesize a concise, first-person ("I", "my") grounded response based on the candidate's resume/projects and listed skills.
 
-CRITICAL ANTI-HALLUCINATION GUARD:
-You must strictly restrict all technical references, frameworks, and tools to the candidate's actual Skills and Resume/Project context provided above.
-DO NOT introduce, hallucinate, or assume any third-party tools (e.g., Cypress, Selenium, Jest, Docker, Kubernetes, etc.) if they are not listed in the candidate's profile/context.`;
+OUTPUT FORMAT:
+Respond with valid JSON:
+{
+  "decisionType": "strict_profile" | "choice_selection" | "rag_synthesis",
+  "value": "string value" or ["array", "of", "options"],
+  "confidence": 0.95
+}`;
 
-        // Inject session-scoped Job Description alignment if provided on current page
+        let promptContent = `CANDIDATE PRIMARY PROFILE FACTS (GROUND TRUTH):
+- Full Name: "${pers.fullName || 'Alex Morgan'}"
+- Email: "${pers.email || ''}"
+- Phone: "${pers.phone || ''}"
+- Location: "${pers.currentLocation || pers.city || ''}"
+- College / University: "${edu.collegeName || ''}"
+- Degree: "${edu.degree || ''}"
+- Graduation Year: "${edu.graduationYear || '2025'}"
+- Total Work Experience (Years): "${expYears}"
+- Current Organization: "${prof.currentOrganization || 'NA'}"
+- Current Role: "${prof.currentRole || 'NA'}"
+- Current CTC (in LPA): "${curCtcLpa}"
+- Expected CTC (in LPA): "${prof.expectedCtcLpa || '10'}"
+- Expected Fixed Package (in INR): "${prof.expectedCtcNumeric || '1000000'}"
+- Notice Period (Text): "${noticeText}"
+- Notice Period (in Days): "${noticeDays}"
+- Can Join Immediately: "${prof.canJoinImmediately || 'Yes'}"
+- LinkedIn URL: "${links.linkedin || ''}"
+- GitHub URL: "${links.github || ''}"
+
+CANDIDATE PROFILE DATA:
+\`\`\`json
+${JSON.stringify(profileContext, null, 2)}
+\`\`\`
+
+RAG CONTEXT (Resume & Projects):
+${contextStr || 'Use candidate profile.'}
+`;
+
         if (sessionJobDescription && sessionJobDescription.trim()) {
-          let sanitizedJd = sessionJobDescription.trim().slice(0, 5000);
-          // Strip HTML tags and script injections
-          sanitizedJd = sanitizedJd.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '').replace(/<[^>]+>/g, ' ');
-          // Neutralize prompt injection phrases
-          sanitizedJd = sanitizedJd
-            .replace(/ignore\s+(all\s+)?(previous|prior|above)\s+instructions?/gi, '[REDACTED_PROMPT_COMMAND]')
-            .replace(/system\s+prompt\s+(leak|override|reveal)/gi, '[REDACTED_PROMPT_COMMAND]')
-            .replace(/print\s+(the\s+)?(api[_\s]?key|credentials?|password)/gi, '[REDACTED_PROMPT_COMMAND]');
-
-          baseContextPrompt += `\n\nTARGET JOB DESCRIPTION / ROLE REQUIREMENTS (Session Alignment):
-"""
-${sanitizedJd.trim()}
-"""
-ALIGNMENT DIRECTIVE:
-Directly tailor and align the candidate's matching experience, technologies, and skills to address the key qualifications and keywords in the Job Description above, while remaining completely truthful to candidate profile facts.`;
+          promptContent += `\nJOB DESCRIPTION ALIGNMENT:\n"""\n${sessionJobDescription.trim().slice(0, 3000)}\n"""\n`;
         }
+
+        promptContent += `\nFORM QUESTION TO EVALUATE:
+Question Text: "${questionText}"
+Field Type: "${fieldType}"
+Available Options: ${options && options.length > 0 ? JSON.stringify(options) : 'None (Text / Number input)'}
+${customInstructions ? `User Instruction: "${customInstructions}"\n` : ''}
+
+Output ONLY valid JSON decision:`;
 
         const messages = [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: baseContextPrompt }
+          { role: 'user', content: promptContent }
         ];
 
-        if (history.length > 0) {
-          history.forEach((turn) => {
-            if (turn.role === 'user') {
-              messages.push({
-                role: 'user',
-                content: `[REVISION INSTRUCTION]: ${turn.content}\nPlease update the previous draft to incorporate this.`
+        let rawOutput = '';
+
+        // Safe helper to communicate with background service worker without throwing context invalidation errors
+        const callProxy = (payload) => {
+          return new Promise((resolve) => {
+            try {
+              if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.id) {
+                resolve(null);
+                return;
+              }
+              chrome.runtime.sendMessage(payload, (res) => {
+                if (chrome.runtime.lastError) {
+                  resolve(null);
+                } else {
+                  resolve(res || null);
+                }
               });
-            } else if (turn.role === 'assistant') {
-              messages.push({
-                role: 'assistant',
-                content: turn.content
-              });
+            } catch (e) {
+              resolve(null);
             }
           });
-        }
-
-        let singlePrompt = `${baseContextPrompt}\n\n`;
-        if (isFollowUp) {
-          const prevAnswer = currentFieldValue || (history.filter((h) => h.role === 'assistant').pop()?.content) || '';
-          singlePrompt += `[CURRENT ANSWER IN FORM]:\n"${prevAnswer}"\n\n[USER REVISION COMMENT]:\n"${customInstructions}"\n\n[REVISION HISTORY CONTEXT]:\n${history.map((h, i) => `${h.role === 'user' ? 'User Instruction' : 'Generated Answer'}: ${h.content}`).join('\n')}\n\nTask: Revise the previous answer incorporating the user's instructions and Job Description alignment while keeping it authentic and grounded in the candidate profile.\nAnswer:`;
-        } else {
-          singlePrompt += `${customInstructions ? `USER FEEDBACK / INSTRUCTIONS:\n"${customInstructions}"\n\n` : ''}Answer:`;
-        }
-
-        let generatedAnswer = '';
+        };
 
         if (llmConfig.provider === 'ollama') {
           const endpoint = (llmConfig.ollamaEndpoint || 'http://localhost:11434').replace(/\/+$/, '');
-          const rawModel = (llmConfig.ollamaModel || 'gemma4:e4b').trim();
+          const rawModel = (llmConfig.ollamaModel || 'llama3.2').trim();
 
-          // Auto-resolve installed Ollama model
-          let resolvedModel = rawModel;
-          try {
-            const tagsRes = await new Promise((resolve) => {
-              if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-                chrome.runtime.sendMessage({
-                  action: 'GENERATE_LLM_RAG',
-                  endpoint: `${endpoint}/api/tags`
-                }, (r) => resolve(r));
-              } else {
-                resolve(null);
-              }
-            });
-            if (tagsRes && tagsRes.success && Array.isArray(tagsRes.data?.models)) {
-              const installed = tagsRes.data.models.map((m) => m.name);
-              if (!installed.includes(rawModel)) {
-                const matched = installed.find((m) => m.startsWith(rawModel + ':') || m.toLowerCase().startsWith(rawModel.toLowerCase()) || m.toLowerCase().includes(rawModel.toLowerCase()));
-                if (matched) resolvedModel = matched;
-                else if (installed.length > 0) resolvedModel = installed[0];
-              }
-            }
-          } catch (e) {}
-
-          const proxyRes = await new Promise((resolve) => {
-            if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-              chrome.runtime.sendMessage({
-                action: 'GENERATE_LLM_RAG',
-                endpoint: `${endpoint}/api/chat`,
-                payload: {
-                  model: resolvedModel,
-                  messages: messages,
-                  stream: false,
-                  options: {
-                    temperature: 0.3,
-                    num_predict: 1500
-                  }
-                }
-              }, (r) => resolve(r));
-            } else {
-              resolve(null);
+          const proxyRes = await callProxy({
+            action: 'GENERATE_LLM_RAG',
+            endpoint: `${endpoint}/api/chat`,
+            payload: {
+              model: rawModel,
+              messages: messages,
+              stream: false,
+              options: { temperature: 0.1, num_predict: 1000 }
             }
           });
 
           if (proxyRes && proxyRes.success) {
-            generatedAnswer = (proxyRes.data?.message?.content || proxyRes.data?.response || '').trim();
-          } else if (proxyRes && !proxyRes.success) {
-            const errDetail = proxyRes.error || proxyRes.data?.error || 'Ollama offline';
-            console.warn('[GFAF] Ollama generation unavailable:', errDetail);
-            // Non-blocking fallback handled below
+            rawOutput = (proxyRes.data?.message?.content || proxyRes.data?.response || '').trim();
           }
         } else if (llmConfig.provider === 'gemini' && llmConfig.geminiApiKey && llmConfig.geminiModel) {
           const url = `https://generativelanguage.googleapis.com/v1beta/models/${llmConfig.geminiModel.trim()}:generateContent?key=${llmConfig.geminiApiKey.trim()}`;
-          const proxyRes = await new Promise((resolve) => {
-            if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-              chrome.runtime.sendMessage({
-                action: 'GENERATE_LLM_RAG',
-                endpoint: url,
-                payload: {
-                  contents: [{ parts: [{ text: `${systemPrompt}\n\n${singlePrompt}` }] }],
-                  generationConfig: {
-                    temperature: 0.3,
-                    maxOutputTokens: 1500
-                  }
-                }
-              }, (r) => resolve(r));
-            } else {
-              resolve(null);
+          const proxyRes = await callProxy({
+            action: 'GENERATE_LLM_RAG',
+            endpoint: url,
+            payload: {
+              contents: [{ parts: [{ text: `${systemPrompt}\n\n${promptContent}` }] }],
+              generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
             }
           });
 
           if (proxyRes && proxyRes.success && proxyRes.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-            generatedAnswer = proxyRes.data.candidates[0].content.parts[0].text.trim();
-          } else if (proxyRes && !proxyRes.success) {
-            console.warn('[GFAF] Gemini generation error:', proxyRes.error);
-            showToast(`Gemini error: ${proxyRes.error || 'Failed to generate'}`, 'error');
+            rawOutput = proxyRes.data.candidates[0].content.parts[0].text.trim();
           }
         } else if (llmConfig.provider === 'openai' && llmConfig.openaiApiKey && llmConfig.openaiModel) {
-          const proxyRes = await new Promise((resolve) => {
-            if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-              chrome.runtime.sendMessage({
-                action: 'GENERATE_LLM_RAG',
-                endpoint: 'https://api.openai.com/v1/chat/completions',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${llmConfig.openaiApiKey.trim()}`
-                },
-                payload: {
-                  model: llmConfig.openaiModel.trim(),
-                  messages: messages,
-                  temperature: 0.3,
-                  max_tokens: 1500
-                }
-              }, (r) => resolve(r));
-            } else {
-              resolve(null);
+          const proxyRes = await callProxy({
+            action: 'GENERATE_LLM_RAG',
+            endpoint: 'https://api.openai.com/v1/chat/completions',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${llmConfig.openaiApiKey.trim()}`
+            },
+            payload: {
+              model: llmConfig.openaiModel.trim(),
+              messages: messages,
+              temperature: 0.1,
+              max_tokens: 1000
             }
           });
 
           if (proxyRes && proxyRes.success && proxyRes.data?.choices?.[0]?.message?.content) {
-            generatedAnswer = proxyRes.data.choices[0].message.content.trim();
-          } else if (proxyRes && !proxyRes.success) {
-            console.warn('[GFAF] OpenAI generation error:', proxyRes.error);
-            showToast(`OpenAI error: ${proxyRes.error || 'Failed to generate'}`, 'error');
+            rawOutput = proxyRes.data.choices[0].message.content.trim();
           }
         } else if (llmConfig.provider === 'anthropic' && llmConfig.anthropicApiKey && llmConfig.anthropicModel) {
-          const proxyRes = await new Promise((resolve) => {
-            if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-              chrome.runtime.sendMessage({
-                action: 'GENERATE_LLM_RAG',
-                endpoint: 'https://api.anthropic.com/v1/messages',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'x-api-key': llmConfig.anthropicApiKey.trim(),
-                  'anthropic-version': '2023-06-01',
-                  'anthropic-dangerous-direct-browser-access': 'true'
-                },
-                payload: {
-                  model: llmConfig.anthropicModel.trim(),
-                  system: systemPrompt,
-                  messages: [{ role: 'user', content: singlePrompt }],
-                  max_tokens: 1500,
-                  temperature: 0.3
-                }
-              }, (r) => resolve(r));
-            } else {
-              resolve(null);
+          const proxyRes = await callProxy({
+            action: 'GENERATE_LLM_RAG',
+            endpoint: 'https://api.anthropic.com/v1/messages',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': llmConfig.anthropicApiKey.trim(),
+              'anthropic-version': '2023-06-01',
+              'anthropic-dangerous-direct-browser-access': 'true'
+            },
+            payload: {
+              model: llmConfig.anthropicModel.trim(),
+              system: systemPrompt,
+              messages: [{ role: 'user', content: promptContent }],
+              max_tokens: 1000,
+              temperature: 0.1
             }
           });
 
           if (proxyRes && proxyRes.success && proxyRes.data?.content?.[0]?.text) {
-            generatedAnswer = proxyRes.data.content[0].text.trim();
-          } else if (proxyRes && !proxyRes.success) {
-            console.warn('[GFAF] Anthropic generation error:', proxyRes.error);
-            showToast(`Anthropic error: ${proxyRes.error || 'Failed to generate'}`, 'error');
+            rawOutput = proxyRes.data.content[0].text.trim();
           }
-        } else if (llmConfig.provider === 'anthropic' && (!llmConfig.anthropicApiKey || !llmConfig.anthropicModel)) {
-          showToast('Anthropic setup incomplete: API Key or Model Name is missing in Settings.', 'error');
-        } else if (llmConfig.provider === 'openai' && (!llmConfig.openaiApiKey || !llmConfig.openaiModel)) {
-          showToast('OpenAI setup incomplete: API Key or Model Name is missing in Settings.', 'error');
-        } else if (llmConfig.provider === 'gemini' && (!llmConfig.geminiApiKey || !llmConfig.geminiModel)) {
-          showToast('Gemini setup incomplete: API Key or Model Name is missing in Settings.', 'error');
         }
 
-        // If LLM returned an answer, record in history, store in cache, and return
-        if (generatedAnswer) {
+        // Try extracting structured decision from AI response
+        if (rawOutput) {
+          let parsedDecision = null;
+          try {
+            if (rawOutput.startsWith('{') && rawOutput.endsWith('}')) {
+              parsedDecision = JSON.parse(rawOutput);
+            } else {
+              const jsonMatch = rawOutput.match(/\{[\s\S]*"value"[\s\S]*\}/);
+              if (jsonMatch) parsedDecision = JSON.parse(jsonMatch[0]);
+            }
+          } catch (e) {}
+
+          if (parsedDecision && parsedDecision.value !== undefined) {
+            parsedDecision = this.validateAndGroundDecision(questionText, parsedDecision, profile, fieldType === 'number', fieldType);
+            if (cacheKey) {
+              window.__GFAF_RESPONSE_CACHE__ = window.__GFAF_RESPONSE_CACHE__ || new Map();
+              window.__GFAF_RESPONSE_CACHE__.set(cacheKey, parsedDecision);
+            }
+            if (typeof parsedDecision.value === 'string') {
+              history.push({ role: 'assistant', content: parsedDecision.value });
+              fieldChatHistory.set(chatKey, history);
+            }
+            return parsedDecision;
+          }
+
+          // Plain text fallback if model returned raw answer
+          const cleanText = rawOutput.replace(/^["']|["']$/g, '').trim();
+          let decision = {
+            decisionType: fieldType === 'checkbox' ? 'choice_selection' : (cleanText.length > 60 ? 'rag_synthesis' : 'strict_profile'),
+            value: fieldType === 'checkbox' ? [cleanText] : cleanText,
+            confidence: 0.90
+          };
+          decision = this.validateAndGroundDecision(questionText, decision, profile, fieldType === 'number', fieldType);
           if (cacheKey) {
             window.__GFAF_RESPONSE_CACHE__ = window.__GFAF_RESPONSE_CACHE__ || new Map();
-            window.__GFAF_RESPONSE_CACHE__.set(cacheKey, generatedAnswer);
+            window.__GFAF_RESPONSE_CACHE__.set(cacheKey, decision);
           }
-          history.push({ role: 'assistant', content: generatedAnswer });
-          fieldChatHistory.set(chatKey, history);
-          return generatedAnswer;
+          return decision;
         }
 
-        // Fallback: If LLM is offline or unconfigured, gracefully synthesize from candidate profile facts
-        const smartMatch = LocalMatcherService.matchSmartAnswers(questionText, profile);
-        if (smartMatch && smartMatch.value) {
-          showToast('Generated from Profile Smart Answers.', 'info');
-          return smartMatch.value;
+        // Graceful offline fallback
+        if (fieldType === 'radio' && options.length > 0) {
+          const radioMatch = LocalMatcherService.matchRadioOption(questionText, options, profile);
+          if (radioMatch && radioMatch.option) {
+            return this.validateAndGroundDecision(questionText, { decisionType: 'choice_selection', value: radioMatch.option, confidence: radioMatch.confidence || 0.85 }, profile, false, fieldType);
+          }
+        } else if (fieldType === 'checkbox' && options.length > 0) {
+          const cbMatch = LocalMatcherService.matchCheckboxOptions(questionText, options, profile);
+          if (cbMatch && cbMatch.length > 0) {
+            return this.validateAndGroundDecision(questionText, { decisionType: 'choice_selection', value: cbMatch, confidence: 0.85 }, profile, false, fieldType);
+          }
+        } else {
+          const directMatch = LocalMatcherService.resolveMatch(questionText, profile);
+          if (directMatch && directMatch.value !== undefined && directMatch.value !== '') {
+            let val = directMatch.value;
+            if (fieldType === 'number') {
+              val = directMatch.numericValue || LocalMatcherService.extractNumericValue(val, questionText);
+            }
+            return this.validateAndGroundDecision(questionText, { decisionType: 'strict_profile', value: String(val).trim(), confidence: directMatch.confidence || 0.85 }, profile, fieldType === 'number', fieldType);
+          }
+          const smartMatch = LocalMatcherService.matchSmartAnswers(questionText, profile);
+          if (smartMatch && smartMatch.value) {
+            return this.validateAndGroundDecision(questionText, { decisionType: 'rag_synthesis', value: smartMatch.value, confidence: 0.90 }, profile, fieldType === 'number', fieldType);
+          }
         }
 
-        const customMatch = LocalMatcherService.matchCustomFields(questionText, profile);
-        if (customMatch && customMatch.value) {
-          showToast('Generated from Custom Fields.', 'info');
-          return customMatch.value;
-        }
-
-        const skills = (profile.skills || []).map((s) => (typeof s === 'object' && s !== null ? s.name : s)).filter(Boolean).slice(0, 10).join(', ');
-        const role = profile.professional?.currentRole || 'Full Stack Engineer';
-        const org = profile.professional?.currentOrganization || 'Open Source Builder';
-        const exp = profile.professional?.totalExperienceYears || '1';
-
-        const normQ = LocalMatcherService.normalize(questionText);
-        if (normQ.includes('stack') || normQ.includes('tool') || normQ.includes('technolog') || normQ.includes('skill')) {
-          showToast('Generated from candidate Tech Stack facts.', 'info');
-          return `I specialize in ${skills || 'Full Stack Development'} with ${exp} year(s) of experience building systems at ${org}.`;
-        }
-
-        if (llmConfig.provider === 'ollama') {
-          showToast('Ollama is offline at localhost:11434. Please start Ollama or configure Gemini/OpenAI/Claude in Fillvyn Settings.', 'error');
-        }
-        return '';
+        return this.validateAndGroundDecision(questionText, { decisionType: 'none', value: '', confidence: 0 }, profile, fieldType === 'number', fieldType);
       } catch (err) {
-        console.warn('[GFAF] synthesizeAiAnswer fallback triggered:', err.message || err);
-        const smartMatch = LocalMatcherService.matchSmartAnswers(questionText, profile);
-        if (smartMatch && smartMatch.value) {
-          return smartMatch.value;
-        }
-        return '';
+        console.warn('[GFAF] evaluateQuestionWithAi error:', err);
+        return { decisionType: 'none', value: '', confidence: 0 };
       }
+    }
+
+    /**
+     * Backward-compatible synthesize method for column AI button
+     */
+    static async synthesizeAiAnswer(questionText, profile, customInstructions = '', currentFieldValue = '') {
+      const decision = await this.evaluateQuestionWithAi({
+        questionText,
+        fieldType: 'textarea',
+        options: [],
+        profile,
+        customInstructions,
+        currentFieldValue
+      });
+      return typeof decision.value === 'string' ? decision.value : (Array.isArray(decision.value) ? decision.value.join(', ') : '');
     }
 
     static attachAiToolbar(containerEl, targetEl, questionText, profile) {
@@ -1934,6 +1978,545 @@ Directly tailor and align the candidate's matching experience, technologies, and
       return attachedCount;
     }
 
+    /**
+     * Identify semantic profile category for a given question
+     */
+    static detectQuestionCategory(questionText) {
+      const q = (questionText || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+
+      if (
+        q.includes('total experience') ||
+        q.includes('years of experience') ||
+        q.includes('total years of experience') ||
+        q.includes('work experience') ||
+        q.includes('experience in years') ||
+        q.includes('experience years') ||
+        q.includes('relevant experience') ||
+        (q.includes('experience') && !q.includes('project') && !q.includes('describe') && !q.includes('share') && !q.includes('tell') && !q.includes('explain') && !q.includes('rate'))
+      ) {
+        return 'total_experience';
+      }
+
+      if (
+        q.includes('current ctc') ||
+        q.includes('current salary') ||
+        q.includes('present ctc') ||
+        q.includes('current fixed ctc') ||
+        q.includes('present salary') ||
+        (q.includes('current') && q.includes('ctc'))
+      ) {
+        return 'current_ctc';
+      }
+
+      if (
+        q.includes('expected ctc') ||
+        q.includes('expected salary') ||
+        q.includes('stipend expectation') ||
+        q.includes('stipend expectations') ||
+        q.includes('ctc expected') ||
+        q.includes('expected compensation') ||
+        q.includes('salary expectation') ||
+        (q.includes('expected') && q.includes('ctc'))
+      ) {
+        return 'expected_ctc';
+      }
+
+      if (
+        q.includes('notice period') ||
+        q.includes('notice') ||
+        q.includes('how soon can you join') ||
+        q.includes('joining availability')
+      ) {
+        return 'notice_period';
+      }
+
+      if (q.includes('current organization') || q.includes('current company') || q.includes('current employer') || q.includes('company name')) return 'current_organization';
+      if (q.includes('current role') || q.includes('current designation') || q.includes('current job title') || q.includes('designation')) return 'current_role';
+      if (q.includes('graduation year') || q.includes('year of graduation') || q.includes('passing year') || q.includes('year of passing')) return 'graduation_year';
+      if (q.includes('10th') || q.includes('tenth') || q.includes('ssc')) return 'tenth_marks';
+      if (q.includes('12th') || q.includes('twelfth') || q.includes('hsc')) return 'twelfth_marks';
+      if (
+        q.includes('working status') ||
+        q.includes('employment status') ||
+        q.includes('work status') ||
+        q.includes('current status') ||
+        q.includes('college/work status')
+      ) {
+        return 'working_status';
+      }
+
+      if (
+        (q.includes('college') || q.includes('university') || q.includes('institute')) &&
+        !q.includes('status') && !q.includes('working') && !q.includes('when') && !q.includes('graduate')
+      ) {
+        return 'college_name';
+      }
+      if (q.includes('full name') || q.includes('your name') || q === 'name' || q === 'name *') return 'full_name';
+      if (q.includes('email') || q.includes('mail id')) return 'email';
+      if (q.includes('phone') || q.includes('mobile') || q.includes('contact no')) return 'phone';
+      if (q.includes('linkedin')) return 'linkedin_url';
+      if (q.includes('github')) return 'github_url';
+      if (q.includes('portfolio') || q.includes('website')) return 'portfolio_url';
+
+      return 'unknown';
+    }
+
+    /**
+     * Validate and ground an AI decision against profile truth
+     */
+    static validateAndGroundDecision(questionText, aiDecision, profile, isNumeric = false, fieldType = 'text') {
+      if (!profile) return aiDecision;
+
+      const category = this.detectQuestionCategory(questionText);
+      const qNorm = (questionText || '').toLowerCase();
+      const isLpaContext = qNorm.includes('lpa') || qNorm.includes('lakhs');
+      const isDigitsContext = qNorm.includes('inr') || qNorm.includes('digits') || qNorm.includes('rupees') || qNorm.includes('numbers only');
+      const isDaysContext = qNorm.includes('day') || qNorm.includes('days');
+
+      const prof = profile.professional || {};
+      const edu = profile.education || {};
+      const pers = profile.personal || {};
+      const links = profile.links || {};
+
+      let expectedValue = null;
+
+      switch (category) {
+        case 'total_experience': {
+          const rawExp = prof.totalExperienceYears !== undefined && prof.totalExperienceYears !== null && prof.totalExperienceYears !== ''
+            ? String(prof.totalExperienceYears).trim()
+            : '0';
+          const cleanNum = rawExp.match(/\d+(\.\d+)?/);
+          expectedValue = cleanNum ? cleanNum[0] : '0';
+          break;
+        }
+        case 'current_ctc': {
+          if (isLpaContext || isNumeric) {
+            let curLpa = prof.currentCtcLpa !== undefined && prof.currentCtcLpa !== null && prof.currentCtcLpa !== ''
+              ? String(prof.currentCtcLpa).trim()
+              : '';
+            if (!curLpa) {
+              const raw = prof.currentCtc || '';
+              if (raw.toLowerCase().includes('na') || raw.toLowerCase().includes('not') || raw.toLowerCase().includes('0') || raw.toLowerCase().includes('fresher')) {
+                curLpa = '0';
+              } else {
+                const m = raw.match(/\d+(\.\d+)?/);
+                curLpa = m ? m[0] : '0';
+              }
+            }
+            const cleanNum = curLpa.match(/\d+(\.\d+)?/);
+            expectedValue = cleanNum ? cleanNum[0] : '0';
+          } else if (isDigitsContext) {
+            expectedValue = prof.currentCtcNumeric !== undefined && prof.currentCtcNumeric !== null && prof.currentCtcNumeric !== '' ? String(prof.currentCtcNumeric).trim() : '0';
+          } else {
+            expectedValue = prof.currentCtc !== undefined && prof.currentCtc !== null && prof.currentCtc !== '' ? String(prof.currentCtc).trim() : '0';
+          }
+          break;
+        }
+        case 'expected_ctc': {
+          if (isLpaContext || (isNumeric && !isDigitsContext)) {
+            let lpaVal = prof.expectedCtcLpa !== undefined && prof.expectedCtcLpa !== null && prof.expectedCtcLpa !== ''
+              ? String(prof.expectedCtcLpa).trim()
+              : '';
+            if (!lpaVal || isNaN(parseFloat(lpaVal))) {
+              const raw = prof.expectedCtc || '';
+              const nums = raw.match(/\d+(\.\d+)?/g);
+              lpaVal = nums ? (nums.length > 1 ? nums[1] : nums[0]) : '10';
+            }
+            const cleanNum = lpaVal.match(/\d+(\.\d+)?/);
+            expectedValue = cleanNum ? cleanNum[0] : '10';
+          } else if (isDigitsContext) {
+            expectedValue = prof.expectedCtcNumeric !== undefined && prof.expectedCtcNumeric !== null && prof.expectedCtcNumeric !== '' ? String(prof.expectedCtcNumeric).trim() : '1000000';
+          } else {
+            expectedValue = prof.expectedCtc !== undefined && prof.expectedCtc !== null && prof.expectedCtc !== '' ? String(prof.expectedCtc).trim() : '10 LPA';
+          }
+          break;
+        }
+        case 'notice_period': {
+          if (isDaysContext || isNumeric || fieldType === 'number') {
+            const rawDays = prof.noticePeriodDays !== undefined && prof.noticePeriodDays !== null && prof.noticePeriodDays !== '' ? String(prof.noticePeriodDays).trim() : '0';
+            const cleanNum = rawDays.match(/\d+/);
+            expectedValue = cleanNum ? cleanNum[0] : '0';
+          } else {
+            expectedValue = prof.noticePeriod !== undefined && prof.noticePeriod !== null && prof.noticePeriod !== '' ? String(prof.noticePeriod).trim() : 'Immediate';
+          }
+          break;
+        }
+        case 'current_organization':
+          expectedValue = prof.currentOrganization || 'NA';
+          break;
+        case 'current_role':
+          expectedValue = prof.currentRole || 'NA';
+          break;
+        case 'graduation_year':
+          expectedValue = edu.graduationYear || '2025';
+          break;
+        case 'working_status':
+          expectedValue = edu.workingStatus || 'Student';
+          break;
+        case 'tenth_marks':
+          expectedValue = isNumeric || isDigitsContext ? (edu.tenthPercentageNumeric || '92.5') : (edu.tenthPercentage || '92.5%');
+          break;
+        case 'twelfth_marks':
+          expectedValue = isNumeric || isDigitsContext ? (edu.twelfthPercentageNumeric || '94.0') : (edu.twelfthPercentage || '94.0%');
+          break;
+        case 'college_name':
+          if (fieldType === 'radio' || fieldType === 'checkbox' || aiDecision?.decisionType === 'choice_selection') return aiDecision;
+          expectedValue = edu.collegeName || 'University of Technology';
+          break;
+        case 'full_name':
+          if (fieldType === 'radio' || fieldType === 'checkbox' || aiDecision?.decisionType === 'choice_selection') return aiDecision;
+          expectedValue = pers.fullName || 'Alex Morgan';
+          break;
+        case 'email':
+          if (fieldType === 'radio' || fieldType === 'checkbox' || aiDecision?.decisionType === 'choice_selection') return aiDecision;
+          expectedValue = pers.email || '';
+          break;
+        case 'phone':
+          if (fieldType === 'radio' || fieldType === 'checkbox' || aiDecision?.decisionType === 'choice_selection') return aiDecision;
+          expectedValue = isDigitsContext || isNumeric ? (pers.phoneDigits || (pers.phone || '').replace(/\D/g, '')) : (pers.phone || '');
+          break;
+        case 'linkedin_url':
+          expectedValue = links.linkedin || '';
+          break;
+        case 'github_url':
+          expectedValue = links.github || '';
+          break;
+        case 'portfolio_url':
+          expectedValue = links.portfolio || '';
+          break;
+        default:
+          break;
+      }
+
+      if (expectedValue !== null && expectedValue !== undefined) {
+        const currentValStr = String(aiDecision?.value !== undefined && aiDecision?.value !== null ? aiDecision.value : '').trim();
+        if (currentValStr !== expectedValue) {
+          const targetType = (fieldType === 'radio' || fieldType === 'checkbox' || aiDecision?.decisionType === 'choice_selection')
+            ? 'choice_selection'
+            : 'strict_profile';
+          return {
+            decisionType: targetType,
+            value: expectedValue,
+            confidence: 0.99,
+            validated: true,
+            overriddenFrom: currentValStr
+          };
+        }
+      }
+
+      return aiDecision;
+    }
+
+    /**
+     * Validate already entered/filled value in DOM against candidate profile
+     */
+    static validateFilledValue(questionText, currentValue, profile, inputEl = null) {
+      if (!profile) return { isValid: true, correctedValue: currentValue };
+
+      const isNumeric = inputEl ? (inputEl.type === 'number' || inputEl.getAttribute('type') === 'number') : false;
+      const fieldType = inputEl ? (inputEl.tagName === 'TEXTAREA' ? 'textarea' : (isNumeric ? 'number' : 'text')) : 'text';
+
+      const grounded = this.validateAndGroundDecision(
+        questionText,
+        { decisionType: 'strict_profile', value: currentValue },
+        profile,
+        isNumeric,
+        fieldType
+      );
+
+      if (grounded && grounded.value !== undefined && String(grounded.value) !== String(currentValue)) {
+        return {
+          isValid: false,
+          correctedValue: String(grounded.value),
+          reason: `Profile ground truth override for ${this.detectQuestionCategory(questionText)}`
+        };
+      }
+
+      return {
+        isValid: true,
+        correctedValue: currentValue
+      };
+    }
+
+    /**
+     * Deterministic Error Auto-Correction & Conflict Detection
+     */
+    static correctValidationError(questionText, currentValue, errorText, profile) {
+      if (!errorText) return null;
+      const normErr = errorText.toLowerCase();
+      const qNorm = (questionText || '').toLowerCase();
+      const prof = profile?.professional || {};
+      const edu = profile?.education || {};
+
+      if (
+        normErr.includes('must be a number') ||
+        normErr.includes('number greater than') ||
+        normErr.includes('number less than') ||
+        normErr.includes('must be greater') ||
+        normErr.includes('must be less') ||
+        normErr.includes('must be between') ||
+        normErr.includes('whole number') ||
+        normErr.includes('must be an integer')
+      ) {
+        let trueProfileVal = null;
+        let label = '';
+
+        if (qNorm.includes('expected') && (qNorm.includes('ctc') || qNorm.includes('salary') || qNorm.includes('compensation') || qNorm.includes('lpa'))) {
+          label = 'Expected CTC';
+          if (normErr.includes('greater than 100') || normErr.includes('greater than 1000')) {
+            trueProfileVal = prof.expectedCtcNumeric || '1000000';
+          } else {
+            let lpa = prof.expectedCtcLpa || '';
+            if (!lpa || isNaN(parseFloat(lpa))) {
+              const raw = prof.expectedCtc || '';
+              const nums = raw.match(/\d+(\.\d+)?/g);
+              lpa = nums ? (nums.length > 1 ? nums[0] : nums[0]) : '10';
+            }
+            const m = String(lpa).match(/\d+(\.\d+)?/);
+            trueProfileVal = m ? m[0] : '10';
+          }
+        } else if (qNorm.includes('current') && (qNorm.includes('ctc') || qNorm.includes('salary') || qNorm.includes('compensation') || qNorm.includes('lpa'))) {
+          label = 'Current CTC';
+          if (normErr.includes('greater than 100') || normErr.includes('greater than 1000')) {
+            trueProfileVal = prof.currentCtcNumeric || '0';
+          } else {
+            let curLpa = prof.currentCtcLpa || '';
+            if (!curLpa) {
+              const raw = prof.currentCtc || '';
+              if (raw.toLowerCase().includes('na') || raw.toLowerCase().includes('not') || raw.toLowerCase().includes('0') || raw.toLowerCase().includes('fresher')) curLpa = '0';
+              else {
+                const m = raw.match(/\d+(\.\d+)?/);
+                curLpa = m ? m[0] : '0';
+              }
+            }
+            const m = String(curLpa).match(/\d+(\.\d+)?/);
+            trueProfileVal = m ? m[0] : '0';
+          }
+        } else if (qNorm.includes('notice') || qNorm.includes('join')) {
+          label = 'Notice Period';
+          const rawDays = prof.noticePeriodDays !== undefined && prof.noticePeriodDays !== null && prof.noticePeriodDays !== ''
+            ? String(prof.noticePeriodDays).trim()
+            : '0';
+          const cleanDays = rawDays.match(/\d+/);
+          trueProfileVal = cleanDays ? cleanDays[0] : '0';
+        } else if (qNorm.includes('experience') || qNorm.includes('years')) {
+          label = 'Total Experience';
+          const rawExp = prof.totalExperienceYears !== undefined ? String(prof.totalExperienceYears).trim() : '0';
+          const cleanExp = rawExp.match(/\d+(\.\d+)?/);
+          trueProfileVal = cleanExp ? cleanExp[0] : '0';
+        } else if (qNorm.includes('10th') || qNorm.includes('tenth')) {
+          label = '10th Marks';
+          trueProfileVal = edu.tenthPercentageNumeric || '92.5';
+        } else if (qNorm.includes('12th') || qNorm.includes('twelfth')) {
+          label = '12th Marks';
+          trueProfileVal = edu.twelfthPercentageNumeric || '94.0';
+        } else if (qNorm.includes('cgpa') || qNorm.includes('graduation percentage')) {
+          label = 'Graduation Marks';
+          trueProfileVal = edu.graduationCgpaNumeric || '8.8';
+        } else {
+          const m = String(currentValue).match(/\d+(\.\d+)?/);
+          trueProfileVal = m ? m[0] : '0';
+        }
+
+        // Check if trueProfileVal violates form's greater-than or less-than constraints
+        let hasConflict = false;
+        let conflictMessage = '';
+
+        const gtMatch = normErr.match(/greater than (or equal to |>= )?(\d+(\.\d+)?)/i);
+        if (gtMatch && trueProfileVal !== null) {
+          const bound = parseFloat(gtMatch[2]);
+          const isStrict = !gtMatch[1];
+          const valNum = parseFloat(trueProfileVal);
+          if (!isNaN(valNum) && (isStrict ? valNum <= bound : valNum < bound)) {
+            hasConflict = true;
+            const symbol = isStrict ? '>' : '>=';
+            const unit = label.includes('CTC') ? 'LPA' : (label.includes('Experience') ? 'Yrs' : (label.includes('Notice') ? 'Days' : ''));
+            conflictMessage = `Conflict: Profile is ${trueProfileVal} ${unit} (Form requires ${symbol} ${bound})`.trim();
+          }
+        }
+
+        const ltMatch = normErr.match(/less than (or equal to |<= )?(\d+(\.\d+)?)/i);
+        if (ltMatch && trueProfileVal !== null) {
+          const bound = parseFloat(ltMatch[2]);
+          const isStrict = !ltMatch[1];
+          const valNum = parseFloat(trueProfileVal);
+          if (!isNaN(valNum) && (isStrict ? valNum >= bound : valNum > bound)) {
+            hasConflict = true;
+            const symbol = isStrict ? '<' : '<=';
+            const unit = label.includes('CTC') ? 'LPA' : (label.includes('Experience') ? 'Yrs' : (label.includes('Notice') ? 'Days' : ''));
+            conflictMessage = `Conflict: Profile is ${trueProfileVal} ${unit} (Form requires ${symbol} ${bound})`.trim();
+          }
+        }
+
+        const betweenMatch = normErr.match(/between\s+(\d+(\.\d+)?)\s+and\s+(\d+(\.\d+)?)/i);
+        if (betweenMatch && trueProfileVal !== null) {
+          const minB = parseFloat(betweenMatch[1]);
+          const maxB = parseFloat(betweenMatch[3]);
+          const valNum = parseFloat(trueProfileVal);
+          if (!isNaN(valNum) && (valNum < minB || valNum > maxB)) {
+            hasConflict = true;
+            conflictMessage = `Conflict: Profile is ${trueProfileVal} (Form requires between ${minB} and ${maxB})`;
+          }
+        }
+
+        if (normErr.includes('whole number') || normErr.includes('integer')) {
+          if (trueProfileVal !== null) {
+            trueProfileVal = String(Math.round(parseFloat(trueProfileVal) || 0));
+          }
+        }
+
+        return {
+          value: trueProfileVal,
+          hasConflict,
+          conflictMessage
+        };
+      }
+
+      return null;
+    }
+
+    /**
+     * Detect reactive validation errors or constraint feedback reflected in the DOM
+     */
+    static detectValidationFeedback(containerEl, inputEl = null) {
+      if (!containerEl) return { hasError: false, errorText: '', constraints: {} };
+
+      const constraints = {};
+      if (inputEl) {
+        if (inputEl.getAttribute) {
+          if (inputEl.getAttribute('min')) constraints.min = inputEl.getAttribute('min');
+          if (inputEl.getAttribute('max')) constraints.max = inputEl.getAttribute('max');
+          if (inputEl.getAttribute('maxlength')) constraints.maxlength = parseInt(inputEl.getAttribute('maxlength'), 10);
+          if (inputEl.getAttribute('minlength')) constraints.minlength = parseInt(inputEl.getAttribute('minlength'), 10);
+          if (inputEl.getAttribute('pattern')) constraints.pattern = inputEl.getAttribute('pattern');
+          if (inputEl.getAttribute('aria-invalid') === 'true') constraints.hasError = true;
+        }
+      }
+
+      const searchRoot = (containerEl.closest && containerEl.closest('div[role="listitem"], div[jsmodel], div[data-automation-id="questionItem"], .office-form-question')) || containerEl;
+
+      // Google Forms error message elements across all modern and legacy variants (excluding question containers)
+      const gfErrorEl = searchRoot.querySelector
+        ? searchRoot.querySelector('div[role="alert"], span[role="alert"], div.R3NpKe, div[jsname="B34EJ"], .asQ4ud, .gHjhdc, .snByac, .d9OAGc')
+        : null;
+      // Microsoft Forms error message elements
+      const msErrorEl = searchRoot.querySelector
+        ? searchRoot.querySelector('div[data-automation-id="validationError"], span[data-automation-id="validationError"], .office-form-validation-error, .office-form-question-error')
+        : null;
+
+      const errEl = gfErrorEl || msErrorEl;
+      let errorText = '';
+      if (errEl) {
+        const raw = (errEl.innerText || errEl.textContent || '').trim();
+        const norm = raw.toLowerCase();
+        if (
+          norm.includes('must') ||
+          norm.includes('greater') ||
+          norm.includes('less') ||
+          norm.includes('number') ||
+          norm.includes('required') ||
+          norm.includes('valid') ||
+          norm.includes('between') ||
+          norm.includes('whole') ||
+          norm.includes('integer') ||
+          norm.includes('digits') ||
+          norm.includes('match')
+        ) {
+          errorText = raw;
+        }
+      }
+
+      const hasError = Boolean(errorText) || Boolean(constraints.hasError);
+
+      return {
+        hasError,
+        errorText,
+        constraints
+      };
+    }
+
+    /**
+     * Execute AI Post-Validation on filled field and auto-correct if bounds/errors are violated
+     */
+    static async postValidateAndFixField(containerEl, targetEl, questionText, profile, currentFilledVal) {
+      if (!containerEl || !targetEl) return currentFilledVal;
+
+      // 1. Profile Ground Truth Check (Prevents experience / CTC / notice period mismatches)
+      if (profile) {
+        const profileCheck = this.validateFilledValue(questionText, currentFilledVal, profile, targetEl);
+        if (!profileCheck.isValid && profileCheck.correctedValue !== undefined && profileCheck.correctedValue !== currentFilledVal) {
+          this.setInputValue(targetEl, profileCheck.correctedValue);
+          currentFilledVal = profileCheck.correctedValue;
+        }
+      }
+
+      // Brief delay for reactive framework validation rendering
+      await new Promise((r) => setTimeout(r, 60));
+
+      let feedback = this.detectValidationFeedback(containerEl, targetEl);
+
+      // If no error rendered yet, trigger a native blur event to provoke form validation
+      if (!feedback.hasError) {
+        try {
+          targetEl.dispatchEvent(new Event('blur', { bubbles: true }));
+          await new Promise((r) => setTimeout(r, 40));
+          feedback = this.detectValidationFeedback(containerEl, targetEl);
+        } catch (e) {}
+      }
+      if (!feedback.hasError && !feedback.errorText && !feedback.constraints.max && !feedback.constraints.min && !feedback.constraints.maxlength) {
+        return { value: currentFilledVal, hasConflict: false };
+      }
+
+      // 2. Deterministic Post-Validation Correction & Conflict Engine
+      if (feedback.errorText) {
+        const fixResult = this.correctValidationError(questionText, currentFilledVal, feedback.errorText, profile);
+        if (fixResult !== null && fixResult.value !== undefined) {
+          if (fixResult.hasConflict) {
+            // User requirement: Do not fill if there is a conflict with form constraints
+            this.setInputValue(targetEl, '');
+            await new Promise((r) => setTimeout(r, 40));
+            return { value: '', hasConflict: true, conflictMessage: fixResult.conflictMessage };
+          }
+
+          if (fixResult.value !== currentFilledVal) {
+            this.setInputValue(targetEl, fixResult.value);
+            await new Promise((r) => setTimeout(r, 40));
+          }
+          return fixResult;
+        }
+      }
+
+      // Deterministic attribute checks
+      if (feedback.constraints.max !== undefined && feedback.constraints.max !== null && feedback.constraints.max !== '') {
+        const maxNum = parseFloat(feedback.constraints.max);
+        const currNum = parseFloat(currentFilledVal);
+        if (!isNaN(maxNum) && !isNaN(currNum) && currNum > maxNum) {
+          this.setInputValue(targetEl, '');
+          return { value: '', hasConflict: true, conflictMessage: `Conflict: Max allowed is ${maxNum}` };
+        }
+      }
+
+      if (feedback.constraints.min !== undefined && feedback.constraints.min !== null && feedback.constraints.min !== '') {
+        const minNum = parseFloat(feedback.constraints.min);
+        const currNum = parseFloat(currentFilledVal);
+        if (!isNaN(minNum) && !isNaN(currNum) && currNum < minNum) {
+          this.setInputValue(targetEl, '');
+          return { value: '', hasConflict: true, conflictMessage: `Conflict: Min required is ${minNum}` };
+        }
+      }
+
+      if (feedback.constraints.maxlength && String(currentFilledVal).length > feedback.constraints.maxlength) {
+        const trimmed = String(currentFilledVal).slice(0, feedback.constraints.maxlength);
+        this.setInputValue(targetEl, trimmed);
+        return { value: trimmed, hasConflict: false };
+      }
+
+      return { value: currentFilledVal, hasConflict: false, conflictMessage: '' };
+    }
+
+    /**
+     * AI-First Form Filling Engine on active form
+     */
     static async fillForm(profile, settings = {}) {
       // Ensure all input columns have per-field AI buttons mounted
       this.injectAiButtonsToAllInputs(profile);
@@ -1946,11 +2529,11 @@ Directly tailor and align the candidate's matching experience, technologies, and
         details: []
       };
 
-      const unfilledOpenEnded = [];
+      if (containers.length === 0) {
+        return results;
+      }
 
-      // ====================================================
-      // PASS 1: Fill All Default / Profile / Smart Q&A Answers FIRST
-      // ====================================================
+      // Process each question through the AI decision engine
       for (let i = 0; i < containers.length; i++) {
         const container = containers[i];
         const questionText = this.extractQuestionText(container);
@@ -1964,100 +2547,195 @@ Directly tailor and align the candidate's matching experience, technologies, and
         const radioOptions = this.extractRadioOptions(container);
         const checkboxOptions = this.extractCheckboxOptions(container);
 
-        // 1. Text / Number Inputs
-        if (textInput || textareaInput) {
-          const targetEl = textareaInput || textInput;
-          const isNumeric = this.isNumericRequirement(targetEl, container, questionText);
-          const isOpenEnded = !isNumeric && this.isOpenEndedQuestion(questionText, targetEl);
+        const targetEl = textareaInput || textInput;
+        const isNumeric = this.isNumericRequirement(targetEl, container, questionText);
+        const isTextArea = Boolean(textareaInput) || (targetEl && targetEl.tagName === 'TEXTAREA');
 
-          // Fast direct match for standard profile details & smart Q&A answers first
-          const directMatch = LocalMatcherService.resolveMatch(questionText, profile);
-          if (directMatch && directMatch.matched && directMatch.value !== undefined && directMatch.confidence >= 0.70) {
-            let finalValue = directMatch.value;
-            if (isNumeric) {
-              finalValue = directMatch.numericValue || LocalMatcherService.extractNumericValue(directMatch.value, questionText);
-            }
+        let fieldType = 'text';
+        let availableOptions = [];
 
-            const success = this.setInputValue(targetEl, String(finalValue));
-            if (success) {
-              results.filledCount++;
-              if (settings.autoHighlight !== false) this.highlightContainer(container, directMatch);
-              results.details.push({ question: questionText, type: 'text', value: finalValue });
-              continue;
-            }
-          }
-
-          // If no default match found, mark as candidate for AI synthesis
-          if (isOpenEnded || targetEl.tagName === 'TEXTAREA' || questionText.length > 30) {
-            unfilledOpenEnded.push({ container, targetEl, questionText });
-          }
+        if (checkboxOptions.length > 0) {
+          fieldType = 'checkbox';
+          availableOptions = checkboxOptions.map((o) => o.label);
+        } else if (radioOptions.length > 0) {
+          fieldType = 'radio';
+          availableOptions = radioOptions.map((o) => o.label);
+        } else if (isTextArea) {
+          fieldType = 'textarea';
+        } else if (isNumeric) {
+          fieldType = 'number';
         }
 
-        // 2. Radio Options
-        if (radioOptions.length > 0) {
-          const optionLabels = radioOptions.map((o) => o.label);
-          const textMatch = LocalMatcherService.resolveMatch(questionText, profile);
-          const radioMatch = LocalMatcherService.matchRadioOption(questionText, optionLabels, profile, textMatch);
-          if (radioMatch && radioMatch.option) {
-            const targetOpt = radioOptions.find((o) => o.label === radioMatch.option);
-            if (targetOpt) {
-              const success = this.selectRadio(targetOpt.element);
+        this.setProcessingState(container, true, 'AI evaluating question...');
+
+        try {
+          const aiDecision = await this.evaluateQuestionWithAi({
+            questionText,
+            fieldType,
+            options: availableOptions,
+            profile
+          });
+
+          if (aiDecision && aiDecision.value !== undefined && aiDecision.value !== '') {
+            // 1. Text & Textarea Inputs
+            if (targetEl && (fieldType === 'text' || fieldType === 'textarea' || fieldType === 'number')) {
+              let fillVal = String(aiDecision.value).trim();
+              if (isNumeric) {
+                fillVal = LocalMatcherService.extractNumericValue(fillVal, questionText) || fillVal;
+              }
+
+              let success = false;
+              if (aiDecision.decisionType === 'rag_synthesis' || fillVal.length > 60) {
+                success = await this.typewriteInputValue(targetEl, fillVal);
+                this.attachAiToolbar(container, targetEl, questionText, profile);
+              } else {
+                success = this.setInputValue(targetEl, fillVal);
+              }
+
               if (success) {
+                // Post-Validation & Constraint Conflict check
+                const postResult = await this.postValidateAndFixField(container, targetEl, questionText, profile, fillVal);
+                const hasConflict = Boolean(postResult?.hasConflict);
+                const conflictMessage = postResult?.conflictMessage || '';
+
+                if (hasConflict) {
+                  results.skippedCount++;
+                  if (settings.autoHighlight !== false) {
+                    this.highlightContainer(container, {
+                      confidence: 0,
+                      isRag: false,
+                      isStrict: false,
+                      infoMessage: '',
+                      hasConflict: true,
+                      conflictMessage
+                    });
+                  }
+                  results.details.push({ question: questionText, type: 'conflict_skipped', value: '', conflict: conflictMessage });
+                  continue;
+                }
+
+                if (postResult && typeof postResult === 'object') {
+                  fillVal = postResult.value !== undefined ? postResult.value : fillVal;
+                } else if (typeof postResult === 'string') {
+                  fillVal = postResult;
+                }
+
+                // Compute right-side display message for CTC, Experience, Notice Period
+                const category = this.detectQuestionCategory(questionText);
+                let infoMessage = '';
+                const prof = profile?.professional || {};
+
+                if (category === 'total_experience') {
+                  const expYears = prof.totalExperienceYears !== undefined ? String(prof.totalExperienceYears).trim() : '0';
+                  infoMessage = `Profile: ${expYears === '0' ? 'Fresher (0 Yrs)' : `${expYears} Yrs`}`;
+                } else if (category === 'current_ctc') {
+                  const curLpa = prof.currentCtcLpa !== undefined ? String(prof.currentCtcLpa).trim() : '0';
+                  infoMessage = `Profile: ${curLpa === '0' ? '0 LPA (Fresher)' : `${curLpa} LPA`}`;
+                } else if (category === 'expected_ctc') {
+                  infoMessage = `Profile Expected: ${prof.expectedCtc || (prof.expectedCtcLpa ? `${prof.expectedCtcLpa} LPA` : '10 LPA')}`;
+                } else if (category === 'notice_period') {
+                  const npText = prof.noticePeriod || 'Immediate';
+                  const npDays = prof.noticePeriodDays || '0';
+                  infoMessage = `Profile: ${npText} (${npDays} Days)`;
+                }
+
                 results.filledCount++;
-                if (settings.autoHighlight !== false) this.highlightContainer(container, radioMatch);
-                results.details.push({ question: questionText, type: 'radio', value: radioMatch.option });
+                if (settings.autoHighlight !== false) {
+                  this.highlightContainer(container, {
+                    confidence: aiDecision.confidence || 0.95,
+                    isRag: aiDecision.decisionType === 'rag_synthesis',
+                    isStrict: aiDecision.decisionType === 'strict_profile',
+                    infoMessage,
+                    hasConflict: false
+                  });
+                }
+                results.details.push({ question: questionText, type: aiDecision.decisionType, value: fillVal });
+                continue;
+              }
+            }
+
+            // 2. Radio Options
+            if (radioOptions.length > 0 && fieldType === 'radio') {
+              const selectedOpt = typeof aiDecision.value === 'string' ? aiDecision.value : (Array.isArray(aiDecision.value) ? aiDecision.value[0] : '');
+              if (selectedOpt) {
+                const targetOpt = radioOptions.find((o) => o.label.trim().toLowerCase() === selectedOpt.trim().toLowerCase())
+                  || radioOptions.find((o) => o.label.toLowerCase().includes(selectedOpt.toLowerCase()) || selectedOpt.toLowerCase().includes(o.label.toLowerCase()));
+
+                if (targetOpt && this.selectRadio(targetOpt.element)) {
+                  results.filledCount++;
+                  if (settings.autoHighlight !== false) {
+                    this.highlightContainer(container, { confidence: aiDecision.confidence || 0.95, isStrict: true });
+                  }
+                  results.details.push({ question: questionText, type: 'radio', value: targetOpt.label });
+                  continue;
+                }
+              }
+            }
+
+            // 3. Checkbox Options
+            if (checkboxOptions.length > 0 && fieldType === 'checkbox') {
+              const selectedArray = Array.isArray(aiDecision.value) ? aiDecision.value : [aiDecision.value];
+              let anyChecked = false;
+              const checkedLabels = [];
+
+              for (const chosenLabel of selectedArray) {
+                const targetCb = checkboxOptions.find((o) => o.label.trim().toLowerCase() === String(chosenLabel).trim().toLowerCase())
+                  || checkboxOptions.find((o) => o.label.toLowerCase().includes(String(chosenLabel).toLowerCase()) || String(chosenLabel).toLowerCase().includes(o.label.toLowerCase()));
+
+                if (targetCb && this.selectCheckbox(targetCb.element)) {
+                  anyChecked = true;
+                  checkedLabels.push(targetCb.label);
+                }
+              }
+
+              if (anyChecked) {
+                results.filledCount++;
+                if (settings.autoHighlight !== false) {
+                  this.highlightContainer(container, { confidence: aiDecision.confidence || 0.95, isStrict: true });
+                }
+                results.details.push({ question: questionText, type: 'checkbox', value: checkedLabels });
                 continue;
               }
             }
           }
-        }
 
-        // 3. Checkbox Options
-        if (checkboxOptions.length > 0) {
-          const optionLabels = checkboxOptions.map((o) => o.label);
-          const selectedLabels = LocalMatcherService.matchCheckboxOptions(questionText, optionLabels, profile);
-          if (selectedLabels.length > 0) {
-            let anyChecked = false;
-            for (const label of selectedLabels) {
-              const targetCb = checkboxOptions.find((o) => o.label === label);
-              if (targetCb && this.selectCheckbox(targetCb.element)) anyChecked = true;
-            }
-            if (anyChecked) {
-              results.filledCount++;
-              if (settings.autoHighlight !== false) this.highlightContainer(container, { confidence: 0.95 });
-              results.details.push({ question: questionText, type: 'checkbox', value: selectedLabels });
-              continue;
-            }
-          }
+          results.skippedCount++;
+        } catch (err) {
+          console.warn('[GFAF] Fill error for question:', questionText, err);
+          results.skippedCount++;
+        } finally {
+          this.setProcessingState(container, false);
         }
       }
 
-      // ====================================================
-      // PASS 2: Synthesize AI Answers ONLY For Remaining Empty Open-Ended Questions
-      // ====================================================
-      for (const item of unfilledOpenEnded) {
-        const { container, targetEl, questionText } = item;
-        if (!targetEl.value || !targetEl.value.trim()) {
-          this.setProcessingState(container, true, 'Synthesizing with AI...');
-          try {
-            const generatedAnswer = await this.synthesizeAiAnswer(questionText, profile);
-            if (generatedAnswer && generatedAnswer.trim()) {
-              const success = await this.typewriteInputValue(targetEl, generatedAnswer.trim());
-              if (success) {
-                results.filledCount++;
-                if (settings.autoHighlight !== false) {
-                  this.highlightContainer(container, { confidence: 0.98, isRag: true });
-                }
-                this.attachAiToolbar(container, targetEl, questionText, profile);
-                results.details.push({ question: questionText, type: 'rag_ai', value: generatedAnswer.trim() });
+      // Global Second-Pass Post-Validation Sweep:
+      // Re-scans all form question containers to catch and auto-heal any reactive error banners
+      try {
+        await new Promise((r) => setTimeout(r, 80));
+        for (let i = 0; i < containers.length; i++) {
+          const container = containers[i];
+          const targetEl = container.querySelector('textarea, input[type="text"], input[type="email"], input[type="tel"], input[type="number"], input[type="url"], input.whsOnd');
+          const questionText = this.extractQuestionText(container);
+          if (targetEl && questionText) {
+            const feedback = this.detectValidationFeedback(container, targetEl);
+            if (feedback.hasError) {
+              const currentVal = targetEl.value;
+              const postResult = await this.postValidateAndFixField(container, targetEl, questionText, profile, currentVal);
+              if (postResult && postResult.hasConflict) {
+                this.highlightContainer(container, {
+                  confidence: 0,
+                  isRag: false,
+                  isStrict: false,
+                  infoMessage: '',
+                  hasConflict: true,
+                  conflictMessage: postResult.conflictMessage
+                });
               }
             }
-          } catch (aiErr) {
-            console.warn('[GFAF] AI synthesis pass error:', aiErr);
-          } finally {
-            this.setProcessingState(container, false);
           }
         }
+      } catch (sweepErr) {
+        console.warn('[GFAF] Global validation sweep notice:', sweepErr);
       }
 
       return results;

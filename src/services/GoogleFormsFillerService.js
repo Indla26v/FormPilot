@@ -6,6 +6,7 @@
 import { FieldMatcherService } from './FieldMatcherService.js';
 import { RetrievalService } from './rag/RetrievalService.js';
 import { LlmService } from './llm/LlmService.js';
+import { ProfileValidatorService } from './ProfileValidatorService.js';
 
 export class GoogleFormsFillerService {
   /**
@@ -463,12 +464,20 @@ export class GoogleFormsFillerService {
       ? (containerEl.closest('div[role="listitem"], div[jsmodel], div[data-automation-id="questionItem"], .office-form-question') || containerEl)
       : containerEl;
 
-    if (outerQuestion.classList && outerQuestion.classList.add) {
-      outerQuestion.classList.add('gfaf-filled-highlight');
+    if (matchInfo.hasConflict) {
+      if (outerQuestion.classList && outerQuestion.classList.add) {
+        outerQuestion.classList.add('gfaf-conflict-highlight');
+        outerQuestion.classList.remove('gfaf-filled-highlight');
+      }
+    } else {
+      if (outerQuestion.classList && outerQuestion.classList.add) {
+        outerQuestion.classList.add('gfaf-filled-highlight');
+        outerQuestion.classList.remove('gfaf-conflict-highlight');
+      }
     }
 
     // Strip any inner/duplicate badges across all children inside this question container
-    const existingBadges = outerQuestion.querySelectorAll ? outerQuestion.querySelectorAll('.gfaf-match-badge') : [];
+    const existingBadges = outerQuestion.querySelectorAll ? outerQuestion.querySelectorAll('.gfaf-badge-container, .gfaf-match-badge, .gfaf-info-pill, .gfaf-conflict-badge') : [];
     if (existingBadges && existingBadges.length > 0) {
       existingBadges.forEach((b) => {
         if (typeof b.remove === 'function') {
@@ -479,18 +488,43 @@ export class GoogleFormsFillerService {
       });
     }
 
-    const badge = this.safeCreateElement('div', outerQuestion);
-    badge.className = 'gfaf-match-badge';
-    if (badge.classList && badge.classList.add) {
-      badge.classList.add('gfaf-match-badge');
-    }
     if (outerQuestion.style) {
       outerQuestion.style.position = 'relative';
     }
-    outerQuestion.appendChild(badge);
 
-    const confidencePct = Math.round((matchInfo.confidence || 1.0) * 100);
-    badge.textContent = matchInfo.isRag ? 'Auto-filled via AI' : `Auto-filled (${confidencePct}%)`;
+    const badgeContainer = this.safeCreateElement('div', outerQuestion);
+    badgeContainer.className = 'gfaf-badge-container';
+
+    // 1. Conflict Badge or Context Info Pill
+    if (matchInfo.hasConflict && matchInfo.conflictMessage) {
+      const conflictPill = this.safeCreateElement('div', badgeContainer);
+      conflictPill.className = 'gfaf-conflict-badge';
+      conflictPill.textContent = matchInfo.conflictMessage;
+      badgeContainer.appendChild(conflictPill);
+
+      const statusBadge = this.safeCreateElement('div', badgeContainer);
+      statusBadge.className = 'gfaf-match-badge gfaf-match-badge-conflict';
+      statusBadge.textContent = 'Not Filled (Conflict)';
+      badgeContainer.appendChild(statusBadge);
+    } else {
+      if (matchInfo.infoMessage) {
+        const infoPill = this.safeCreateElement('div', badgeContainer);
+        infoPill.className = 'gfaf-info-pill';
+        infoPill.textContent = matchInfo.infoMessage;
+        badgeContainer.appendChild(infoPill);
+      }
+
+      // 2. Status Badge
+      const badge = this.safeCreateElement('div', badgeContainer);
+      badge.className = 'gfaf-match-badge';
+      const confidencePct = Math.round((matchInfo.confidence || 1.0) * 100);
+      badge.textContent = matchInfo.isRag
+        ? 'Auto-filled via AI'
+        : `Auto-filled (${confidencePct}%)`;
+      badgeContainer.appendChild(badge);
+    }
+
+    outerQuestion.appendChild(badgeContainer);
   }
 
   /**
@@ -747,7 +781,153 @@ export class GoogleFormsFillerService {
   }
 
   /**
-   * Main scan and fill pipeline on the current document
+   * Detect reactive validation errors or constraint feedback reflected in the DOM
+   */
+  static detectValidationFeedback(containerEl, inputEl = null) {
+    if (!containerEl) return { hasError: false, errorText: '', constraints: {} };
+
+    const constraints = {};
+    if (inputEl) {
+      if (inputEl.getAttribute) {
+        if (inputEl.getAttribute('min')) constraints.min = inputEl.getAttribute('min');
+        if (inputEl.getAttribute('max')) constraints.max = inputEl.getAttribute('max');
+        if (inputEl.getAttribute('maxlength')) constraints.maxlength = parseInt(inputEl.getAttribute('maxlength'), 10);
+        if (inputEl.getAttribute('minlength')) constraints.minlength = parseInt(inputEl.getAttribute('minlength'), 10);
+        if (inputEl.getAttribute('pattern')) constraints.pattern = inputEl.getAttribute('pattern');
+        if (inputEl.getAttribute('aria-invalid') === 'true') constraints.hasError = true;
+      }
+    }
+
+    const searchRoot = (containerEl.closest && containerEl.closest('div[role="listitem"], div[jsmodel], div[data-automation-id="questionItem"], .office-form-question')) || containerEl;
+
+    // Google Forms error message elements across all modern and legacy variants (excluding question containers)
+    const gfErrorEl = searchRoot.querySelector
+      ? searchRoot.querySelector('div[role="alert"], span[role="alert"], div.R3NpKe, div[jsname="B34EJ"], .asQ4ud, .gHjhdc, .snByac, .d9OAGc')
+      : null;
+    // Microsoft Forms error message elements
+    const msErrorEl = searchRoot.querySelector
+      ? searchRoot.querySelector('div[data-automation-id="validationError"], span[data-automation-id="validationError"], .office-form-validation-error, .office-form-question-error')
+      : null;
+
+    const errEl = gfErrorEl || msErrorEl;
+    let errorText = '';
+    if (errEl) {
+      const raw = (errEl.innerText || errEl.textContent || '').trim();
+      const norm = raw.toLowerCase();
+      if (
+        norm.includes('must') ||
+        norm.includes('greater') ||
+        norm.includes('less') ||
+        norm.includes('number') ||
+        norm.includes('required') ||
+        norm.includes('valid') ||
+        norm.includes('between') ||
+        norm.includes('whole') ||
+        norm.includes('integer') ||
+        norm.includes('digits') ||
+        norm.includes('match')
+      ) {
+        errorText = raw;
+      }
+    }
+
+    const hasError = Boolean(errorText) || Boolean(constraints.hasError);
+
+    return {
+      hasError,
+      errorText,
+      constraints
+    };
+  }
+
+  /**
+   * Execute AI Post-Validation on filled field and auto-correct if bounds/errors are violated
+   */
+  static async postValidateAndFixField(containerEl, targetEl, questionText, profile, currentFilledVal) {
+    if (!containerEl || !targetEl) return currentFilledVal;
+
+    // 1. Profile Ground Truth Check (Prevents experience / CTC / notice period mismatches)
+    if (profile) {
+      const profileCheck = ProfileValidatorService.validateFilledValue(questionText, currentFilledVal, profile, targetEl);
+      if (!profileCheck.isValid && profileCheck.correctedValue !== undefined && profileCheck.correctedValue !== currentFilledVal) {
+        this.setInputValue(targetEl, profileCheck.correctedValue);
+        currentFilledVal = profileCheck.correctedValue;
+      }
+    }
+
+    // Brief delay for reactive framework validation rendering
+    await new Promise((r) => setTimeout(r, 60));
+
+    let feedback = this.detectValidationFeedback(containerEl, targetEl);
+
+    // If no error rendered yet, trigger a native blur event to provoke form validation
+    if (!feedback.hasError) {
+      try {
+        targetEl.dispatchEvent(new Event('blur', { bubbles: true }));
+        await new Promise((r) => setTimeout(r, 40));
+        feedback = this.detectValidationFeedback(containerEl, targetEl);
+      } catch (e) {}
+    }
+
+    if (!feedback.hasError && !feedback.errorText && !feedback.constraints.max && !feedback.constraints.min && !feedback.constraints.maxlength) {
+      return currentFilledVal;
+    }
+
+    // 2. Deterministic Post-Validation Correction & Conflict Engine
+    if (feedback.errorText) {
+      const fixResult = ProfileValidatorService.correctValidationError(questionText, currentFilledVal, feedback.errorText, profile);
+      if (fixResult !== null && fixResult.value !== undefined) {
+        if (fixResult.hasConflict) {
+          // User requirement: Do not fill if there is a conflict with form constraints
+          this.setInputValue(targetEl, '');
+          await new Promise((r) => setTimeout(r, 40));
+          return { value: '', hasConflict: true, conflictMessage: fixResult.conflictMessage };
+        }
+
+        if (fixResult.value !== currentFilledVal) {
+          this.setInputValue(targetEl, fixResult.value);
+          await new Promise((r) => setTimeout(r, 40));
+        }
+        return fixResult;
+      }
+    }
+
+    // Deterministic attribute checks
+    if (feedback.constraints.max !== undefined && feedback.constraints.max !== null && feedback.constraints.max !== '') {
+      const maxNum = parseFloat(feedback.constraints.max);
+      const currNum = parseFloat(currentFilledVal);
+      if (!isNaN(maxNum) && !isNaN(currNum) && currNum > maxNum) {
+        this.setInputValue(targetEl, '');
+        return { value: '', hasConflict: true, conflictMessage: `Conflict: Max allowed is ${maxNum}` };
+      }
+    }
+
+    if (feedback.constraints.min !== undefined && feedback.constraints.min !== null && feedback.constraints.min !== '') {
+      const minNum = parseFloat(feedback.constraints.min);
+      const currNum = parseFloat(currentFilledVal);
+      if (!isNaN(minNum) && !isNaN(currNum) && currNum < minNum) {
+        this.setInputValue(targetEl, '');
+        return { value: '', hasConflict: true, conflictMessage: `Conflict: Min required is ${minNum}` };
+      }
+    }
+
+    if (feedback.constraints.maxlength && String(currentFilledVal).length > feedback.constraints.maxlength) {
+      const trimmed = String(currentFilledVal).slice(0, feedback.constraints.maxlength);
+      this.setInputValue(targetEl, trimmed);
+      return { value: trimmed, hasConflict: false };
+    }
+
+    return { value: currentFilledVal, hasConflict: false, conflictMessage: '' };
+  }
+
+  /**
+   * Main scan and fill pipeline on the active form
+   * AI-FIRST FORM DECISION & FILLING ENGINE WITH POST-VALIDATION:
+   * 1. Extracts every question container and contextual requirements.
+   * 2. Evaluates the question using the AI Decision Engine (LLM + RAG + Profile).
+   * 3. AI decides exact strict value, matching options, or synthesized RAG essay.
+   * 4. Dispatches native DOM events & animations to fill the form.
+   * 5. Runs AI Post-Validation to check reflected min/max range constraints or errors.
    */
   static async fillForm(profile, settings = {}) {
     const containers = this.findQuestionContainers();
@@ -765,11 +945,9 @@ export class GoogleFormsFillerService {
     // Ensure all input columns have per-field AI buttons mounted
     this.injectAiButtonsToAllInputs(profile);
 
-    const unfilledOpenEnded = [];
+    const sessionJd = settings.jobDescription || (typeof window !== 'undefined' ? window.__GFAF_SESSION_JD__ : '') || '';
 
-    // ====================================================
-    // PASS 1: Fill All Default / Profile / Smart Q&A Answers FIRST
-    // ====================================================
+    // Process every question through the AI Evaluation Engine
     for (let i = 0; i < containers.length; i++) {
       const container = containers[i];
       const questionText = this.extractQuestionText(container);
@@ -784,152 +962,259 @@ export class GoogleFormsFillerService {
       const radioOptions = this.extractRadioOptions(container);
       const checkboxOptions = this.extractCheckboxOptions(container);
 
-      // 1. Handle Text / Paragraph / Number Inputs
-      if (textInput || textareaInput) {
-        const targetEl = textareaInput || textInput;
-        const isNumeric = this.isNumericRequirement(targetEl, container, questionText);
-        const isOpenEnded = !isNumeric && this.isOpenEndedQuestion(questionText, targetEl);
+      const targetEl = textareaInput || textInput;
+      const isNumeric = this.isNumericRequirement(targetEl, container, questionText);
+      const isTextArea = Boolean(textareaInput) || (targetEl && targetEl.tagName === 'TEXTAREA');
 
-        const directMatch = FieldMatcherService.resolveMatch(questionText, profile);
-        if (directMatch && directMatch.matched && directMatch.value !== undefined && directMatch.confidence >= 0.70) {
-          let finalValue = directMatch.value;
-          if (isNumeric) {
-            finalValue = directMatch.numericValue || FieldMatcherService.extractNumericValue(directMatch.value, questionText);
-          }
+      let fieldType = 'text';
+      let availableOptions = [];
 
-          const success = this.setInputValue(targetEl, String(finalValue));
-          if (success) {
-            results.filledCount++;
-            if (settings.autoHighlight !== false) {
-              this.highlightContainer(container, directMatch);
-            }
-            results.details.push({
-              question: questionText,
-              type: 'text',
-              value: finalValue,
-              confidence: directMatch.confidence
-            });
-            continue;
-          }
-        }
-
-        // If no default match found, mark as candidate for AI synthesis
-        if (isOpenEnded || targetEl.tagName === 'TEXTAREA' || questionText.length > 30) {
-          unfilledOpenEnded.push({ container, targetEl, questionText });
-        }
+      if (checkboxOptions.length > 0) {
+        fieldType = 'checkbox';
+        availableOptions = checkboxOptions.map((o) => o.label);
+      } else if (radioOptions.length > 0) {
+        fieldType = 'radio';
+        availableOptions = radioOptions.map((o) => o.label);
+      } else if (isTextArea) {
+        fieldType = 'textarea';
+      } else if (isNumeric) {
+        fieldType = 'number';
       }
 
-      // 2. Radio Options
-      if (radioOptions.length > 0) {
-        const optionLabels = radioOptions.map((o) => o.label);
-        const textMatch = FieldMatcherService.resolveMatch(questionText, profile);
-        const radioMatch = FieldMatcherService.matchRadioOption(questionText, optionLabels, profile, textMatch);
-        if (radioMatch && radioMatch.option) {
-          const targetOpt = radioOptions.find((o) => o.label === radioMatch.option);
-          if (targetOpt) {
-            const success = this.selectRadio(targetOpt.element);
+      this.setProcessingState(container, true, 'AI evaluating question...');
+
+      try {
+        // Retrieve relevant RAG context chunks from knowledge base
+        let chunks = [];
+        try {
+          chunks = await RetrievalService.retrieveRelevantChunks(questionText, 3, profile?.id);
+        } catch (e) {}
+
+        // Send question to AI Decision Engine
+        let aiDecision = await LlmService.evaluateAndFillQuestion({
+          question: questionText,
+          fieldType: fieldType,
+          options: availableOptions,
+          profile: profile,
+          retrievedChunks: chunks,
+          jobDescription: sessionJd
+        });
+
+        // Offline / Fallback Resilience: If AI was offline or returned empty, resolve via local profile facts
+        if (!aiDecision || !aiDecision.value || (Array.isArray(aiDecision.value) && aiDecision.value.length === 0)) {
+          if (fieldType === 'radio' && radioOptions.length > 0) {
+            const fallbackRadio = FieldMatcherService.matchRadioOption(questionText, availableOptions, profile);
+            if (fallbackRadio && fallbackRadio.option) {
+              aiDecision = { decisionType: 'choice_selection', value: fallbackRadio.option, confidence: fallbackRadio.confidence || 0.85 };
+            }
+          } else if (fieldType === 'checkbox' && checkboxOptions.length > 0) {
+            const fallbackCb = FieldMatcherService.matchCheckboxOptions(questionText, availableOptions, profile);
+            if (fallbackCb && fallbackCb.length > 0) {
+              aiDecision = { decisionType: 'choice_selection', value: fallbackCb, confidence: 0.85 };
+            }
+          } else if (targetEl) {
+            const directMatch = FieldMatcherService.resolveMatch(questionText, profile);
+            if (directMatch && directMatch.value !== undefined && directMatch.value !== '') {
+              let val = directMatch.value;
+              if (isNumeric) {
+                val = directMatch.numericValue || FieldMatcherService.extractNumericValue(val, questionText);
+              }
+              aiDecision = { decisionType: 'strict_profile', value: String(val).trim(), confidence: directMatch.confidence || 0.85 };
+            } else {
+              const smart = FieldMatcherService.matchSmartAnswers(questionText, profile);
+              if (smart && smart.value) {
+                aiDecision = { decisionType: 'rag_synthesis', value: smart.value, confidence: 0.90 };
+              }
+            }
+          }
+        }
+
+        // Ground and validate decision with ProfileValidatorService to prevent hallucinations
+        aiDecision = ProfileValidatorService.validateAndGroundDecision(
+          questionText,
+          aiDecision,
+          profile,
+          isNumeric,
+          fieldType
+        );
+
+        // Apply AI Decision to DOM
+        if (aiDecision && aiDecision.value !== undefined && aiDecision.value !== '') {
+          // 1. Text & Textarea Inputs
+          if (targetEl && (fieldType === 'text' || fieldType === 'textarea' || fieldType === 'number')) {
+            let fillVal = String(aiDecision.value).trim();
+            if (isNumeric) {
+              fillVal = FieldMatcherService.extractNumericValue(fillVal, questionText) || fillVal;
+            }
+
+            let success = false;
+            if (aiDecision.decisionType === 'rag_synthesis' || fillVal.length > 60) {
+              success = await this.typewriteInputValue(targetEl, fillVal);
+              this.attachAiToolbar(container, targetEl, questionText, profile);
+            } else {
+              success = this.setInputValue(targetEl, fillVal);
+            }
+
             if (success) {
+              // POST-VALIDATION CHECK & CONFLICT DETECTION:
+              // Inspect if form reflected validation error / min / max bounds in DOM
+              const postResult = await this.postValidateAndFixField(container, targetEl, questionText, profile, fillVal);
+              const hasConflict = Boolean(postResult?.hasConflict);
+              const conflictMessage = postResult?.conflictMessage || '';
+
+              if (hasConflict) {
+                results.skippedCount++;
+                if (settings.autoHighlight !== false) {
+                  this.highlightContainer(container, {
+                    confidence: 0,
+                    isRag: false,
+                    isStrict: false,
+                    infoMessage: '',
+                    hasConflict: true,
+                    conflictMessage
+                  });
+                }
+                results.details.push({ question: questionText, type: 'conflict_skipped', value: '', conflict: conflictMessage });
+                continue;
+              }
+
+              if (postResult && typeof postResult === 'object') {
+                fillVal = postResult.value !== undefined ? postResult.value : fillVal;
+              } else if (typeof postResult === 'string') {
+                fillVal = postResult;
+              }
+
+              // Compute right-side display message for CTC, Experience, Notice Period
+              const category = ProfileValidatorService.detectQuestionCategory(questionText);
+              let infoMessage = '';
+              const prof = profile?.professional || {};
+
+              if (category === 'total_experience') {
+                const expYears = prof.totalExperienceYears !== undefined ? String(prof.totalExperienceYears).trim() : '0';
+                infoMessage = `Profile: ${expYears === '0' ? 'Fresher (0 Yrs)' : `${expYears} Yrs`}`;
+              } else if (category === 'current_ctc') {
+                const curLpa = prof.currentCtcLpa !== undefined ? String(prof.currentCtcLpa).trim() : '0';
+                infoMessage = `Profile: ${curLpa === '0' ? '0 LPA (Fresher)' : `${curLpa} LPA`}`;
+              } else if (category === 'expected_ctc') {
+                infoMessage = `Profile Expected: ${prof.expectedCtc || (prof.expectedCtcLpa ? `${prof.expectedCtcLpa} LPA` : '10 LPA')}`;
+              } else if (category === 'notice_period') {
+                const npText = prof.noticePeriod || 'Immediate';
+                const npDays = prof.noticePeriodDays || '0';
+                infoMessage = `Profile: ${npText} (${npDays} Days)`;
+              }
+
               results.filledCount++;
               if (settings.autoHighlight !== false) {
-                this.highlightContainer(container, radioMatch);
+                this.highlightContainer(container, {
+                  confidence: aiDecision.confidence || 0.95,
+                  isRag: aiDecision.decisionType === 'rag_synthesis',
+                  isStrict: aiDecision.decisionType === 'strict_profile',
+                  infoMessage,
+                  hasConflict: false
+                });
               }
               results.details.push({
                 question: questionText,
-                type: 'radio',
-                value: radioMatch.option,
-                confidence: radioMatch.confidence
+                type: aiDecision.decisionType,
+                value: fillVal,
+                confidence: aiDecision.confidence || 0.95
+              });
+              continue;
+            }
+          }
+
+          // 2. Radio Options (Single Choice)
+          if (radioOptions.length > 0 && fieldType === 'radio') {
+            const selectedOpt = typeof aiDecision.value === 'string' ? aiDecision.value : (Array.isArray(aiDecision.value) ? aiDecision.value[0] : '');
+            if (selectedOpt) {
+              const targetOpt = radioOptions.find((o) => o.label.trim().toLowerCase() === selectedOpt.trim().toLowerCase())
+                || radioOptions.find((o) => o.label.toLowerCase().includes(selectedOpt.toLowerCase()) || selectedOpt.toLowerCase().includes(o.label.toLowerCase()));
+
+              if (targetOpt && this.selectRadio(targetOpt.element)) {
+                results.filledCount++;
+                if (settings.autoHighlight !== false) {
+                  this.highlightContainer(container, { confidence: aiDecision.confidence || 0.95, isStrict: true });
+                }
+                results.details.push({
+                  question: questionText,
+                  type: 'radio',
+                  value: targetOpt.label,
+                  confidence: aiDecision.confidence || 0.95
+                });
+                continue;
+              }
+            }
+          }
+
+          // 3. Checkbox Options (Multi-Choice)
+          if (checkboxOptions.length > 0 && fieldType === 'checkbox') {
+            const selectedArray = Array.isArray(aiDecision.value) ? aiDecision.value : [aiDecision.value];
+            let anyChecked = false;
+            const checkedLabels = [];
+
+            for (const chosenLabel of selectedArray) {
+              const targetCb = checkboxOptions.find((o) => o.label.trim().toLowerCase() === String(chosenLabel).trim().toLowerCase())
+                || checkboxOptions.find((o) => o.label.toLowerCase().includes(String(chosenLabel).toLowerCase()) || String(chosenLabel).toLowerCase().includes(o.label.toLowerCase()));
+
+              if (targetCb && this.selectCheckbox(targetCb.element)) {
+                anyChecked = true;
+                checkedLabels.push(targetCb.label);
+              }
+            }
+
+            if (anyChecked) {
+              results.filledCount++;
+              if (settings.autoHighlight !== false) {
+                this.highlightContainer(container, { confidence: aiDecision.confidence || 0.95, isStrict: true });
+              }
+              results.details.push({
+                question: questionText,
+                type: 'checkbox',
+                value: checkedLabels,
+                confidence: aiDecision.confidence || 0.95
               });
               continue;
             }
           }
         }
-      }
 
-      // 3. Checkbox Options
-      if (checkboxOptions.length > 0) {
-        const optionLabels = checkboxOptions.map((o) => o.label);
-        const selectedLabels = FieldMatcherService.matchCheckboxOptions(questionText, optionLabels, profile);
-        if (selectedLabels.length > 0) {
-          let anyChecked = false;
-          for (const label of selectedLabels) {
-            const targetCb = checkboxOptions.find((o) => o.label === label);
-            if (targetCb && this.selectCheckbox(targetCb.element)) {
-              anyChecked = true;
-            }
-          }
-          if (anyChecked) {
-            results.filledCount++;
-            if (settings.autoHighlight !== false) {
-              this.highlightContainer(container, { confidence: 0.95 });
-            }
-            results.details.push({
-              question: questionText,
-              type: 'checkbox',
-              value: selectedLabels,
-              confidence: 0.95
-            });
-            continue;
-          }
-        }
+        results.skippedCount++;
+      } catch (err) {
+        console.warn('[GFAF] Field fill error:', err);
+        results.skippedCount++;
+      } finally {
+        this.setProcessingState(container, false);
       }
     }
 
-    // ====================================================
-    // PASS 2: Synthesize AI Answers ONLY For Remaining Empty Open-Ended Questions
-    // ====================================================
-    if (settings.enableRag !== false) {
-      for (const item of unfilledOpenEnded) {
-        const { container, targetEl, questionText } = item;
-        if (!targetEl.value || !targetEl.value.trim()) {
-          this.setProcessingState(container, true, 'Synthesizing with AI...');
-          try {
-            const chunks = await RetrievalService.retrieveRelevantChunks(questionText, 3, profile?.id);
-            let generated = '';
-            try {
-              generated = await LlmService.generateRagAnswer({
-                question: questionText,
-                retrievedChunks: chunks || [],
-                profile: profile
+    // 4. Global Second-Pass Post-Validation Sweep:
+    // Re-scans all form question containers to catch and auto-heal any reactive error banners
+    try {
+      await new Promise((r) => setTimeout(r, 80));
+      for (let i = 0; i < containers.length; i++) {
+        const container = containers[i];
+        const targetEl = container.querySelector('textarea, input[type="text"], input[type="email"], input[type="tel"], input[type="number"], input[type="url"], input.whsOnd');
+        const questionText = this.extractQuestionText(container);
+        if (targetEl && questionText) {
+          const feedback = this.detectValidationFeedback(container, targetEl);
+          if (feedback.hasError) {
+            const currentVal = targetEl.value;
+            const postResult = await this.postValidateAndFixField(container, targetEl, questionText, profile, currentVal);
+            if (postResult && postResult.hasConflict) {
+              this.highlightContainer(container, {
+                confidence: 0,
+                isRag: false,
+                isStrict: false,
+                infoMessage: '',
+                hasConflict: true,
+                conflictMessage: postResult.conflictMessage
               });
-            } catch (llmErr) {
-              console.warn('[GFAF] Auto-fill LLM offline, checking profile smart answers:', llmErr.message);
             }
-
-            if (!generated || !generated.trim()) {
-              const smart = FieldMatcherService.matchSmartAnswers(questionText, profile);
-              if (smart && smart.value) {
-                generated = smart.value;
-              } else {
-                const custom = FieldMatcherService.matchCustomFields(questionText, profile);
-                if (custom && custom.value) {
-                  generated = custom.value;
-                }
-              }
-            }
-
-            if (generated && generated.trim()) {
-              const success = await this.typewriteInputValue(targetEl, generated.trim());
-              if (success) {
-                results.filledCount++;
-                if (settings.autoHighlight !== false) {
-                  this.highlightContainer(container, { confidence: 0.98, isRag: true });
-                }
-                this.attachAiToolbar(container, targetEl, questionText, profile);
-                results.details.push({
-                  question: questionText,
-                  type: 'rag_ai',
-                  value: generated.trim(),
-                  confidence: 0.98
-                });
-              }
-            }
-          } catch (ragErr) {
-            console.warn('[GFAF] RAG generation fallback:', ragErr.message);
-          } finally {
-            this.setProcessingState(container, false);
           }
         }
       }
+    } catch (sweepErr) {
+      console.warn('[GFAF] Global validation sweep notice:', sweepErr);
     }
 
     return results;

@@ -46,17 +46,6 @@ export default function HeroSection() {
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto space-y-6">
-          {/* Top Pill Notification Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-50 border border-indigo-200/80 text-indigo-800 text-xs font-semibold shadow-xs hover:bg-indigo-100/80 transition-colors">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Version 2.0 Released</span>
-            <span className="text-indigo-300">•</span>
-            <span className="flex items-center gap-1 text-indigo-700">
-              Offline RAG & GitHub Ingestion
-              <ArrowRight className="w-3 h-3" />
-            </span>
-          </div>
-
           {/* Main Headline */}
           <h1 className="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-slate-900 leading-[1.15]">
             Fill Forms in Seconds with{' '}

@@ -67,10 +67,63 @@
   border-radius: 8px !important;
 }
 
-.gfaf-match-badge {
+.gfaf-conflict-highlight {
+  border-left: 4px solid #f59e0b !important;
+  background: rgba(245, 158, 11, 0.03) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 8px !important;
+}
+
+.gfaf-badge-container {
   position: absolute;
   top: 12px;
   right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 10;
+  pointer-events: none;
+  animation: gfafFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.gfaf-info-pill {
+  background: rgba(99, 102, 241, 0.12);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  backdrop-filter: blur(8px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
+}
+
+.gfaf-conflict-badge {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  backdrop-filter: blur(8px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.15);
+  white-space: nowrap;
+}
+
+.gfaf-info-pill-adjusted {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+}
+
+.gfaf-match-badge {
   background: #10b981;
   color: #ffffff;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -81,8 +134,12 @@
   border-radius: 9999px;
   box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
   pointer-events: none;
-  z-index: 10;
-  animation: gfafFadeIn 0.3s ease-out;
+  white-space: nowrap;
+}
+
+.gfaf-match-badge-conflict {
+  background: #f59e0b !important;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3) !important;
 }
 
 @keyframes gfafFadeIn {

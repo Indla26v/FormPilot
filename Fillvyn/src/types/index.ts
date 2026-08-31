@@ -14,6 +14,7 @@ export interface CandidateProfile {
   id: string;
   name: string;
   role: string;
+  domainTitle: string;
   email: string;
   phone: string;
   location: string;
@@ -31,6 +32,7 @@ export interface CandidateProfile {
   skills: string[];
   techSummary: string;
   debugStory: string;
+  resumeFile?: string;
 }
 
 export interface ShowcaseTab {

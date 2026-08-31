@@ -1,62 +1,120 @@
-# Fillvyn — AI Forms Auto-Filler & RAG Assistant (Google Forms & Microsoft Forms)
+# Fillvyn — AI-First Forms Auto-Filler & RAG Assistant (Google Forms & Microsoft Forms)
 
-A smart, modern Manifest V3 Chrome Extension designed specifically for candidates, job seekers, and developers to auto-fill **Google Forms** and **Microsoft Forms (`forms.cloud.microsoft`, `forms.office.com`)**. Features **instant profile matching**, **clean numeric vs text formatting**, **Job Description (JD) target alignment**, and **Retrieval-Augmented Generation (RAG)** using your uploaded **Resume** and **GitHub Project `README.md` files** powered by **Local Ollama (100% Free & Offline)**, Google Gemini, OpenAI, or Claude.
+A smart, modern Manifest V3 Chrome Extension designed specifically for candidates, job seekers, and developers to auto-fill **Google Forms** and **Microsoft Forms (`forms.cloud.microsoft`, `forms.office.com`)**. Built on an **AI-first decision pipeline**, **dynamic RAG knowledge base**, **profile ground truth guard**, **reactive post-validation**, and **automated constraint conflict detection**.
+
+Powered by **Local Ollama (100% Free & Offline)**, Google Gemini, OpenAI, or Claude.
+
+---
+
+## Core Architectural Pillars
+
+```
++-----------------------------------------------------------------------------------+
+|                           AI-FIRST FORM FILLING PIPELINE                          |
++-----------------------------------------------------------------------------------+
+|                                                                                   |
+|  [ 1. DOM Scan & Context Extraction ]                                             |
+|      - Scans question containers, inputs, textareas, radios, checkboxes.           |
+|      - Detects required formats (numeric, scale, currency, character bounds).    |
+|                                                                                   |
+|  [ 2. AI Decision Engine (LLM + RAG + Profile Ground Truth) ]                     |
+|      - Dispatches question + candidate facts + vector RAG chunks to LLM.          |
+|      - Strict Profile Matching: Legal name, email, phone, location, GPA, URLs.     |
+|      - Choice Classification: Evaluates radios and checkboxes against skills.     |
+|      - Grounded Essay Synthesis: First-person technical project explanations.     |
+|                                                                                   |
+|  [ 3. Profile Ground Truth & Anti-Hallucination Guard ]                          |
+|      - Enforces candidate ground truth (Fresher = 0 Yrs, 0 LPA, Immediate = 0 D). |
+|      - Prevents LLM from confusing skill years with total work experience.        |
+|                                                                                   |
+|  [ 4. Native DOM Dispatch & Typewriter Simulation ]                               |
+|      - Triggers complete native event loop: focus -> input -> change -> blur.     |
+|      - Typewriter animation for long-form answers and essays.                     |
+|                                                                                   |
+|  [ 5. Reactive Post-Validation & Constraint Conflict Engine ]                     |
+|      - Inspects reactive Google/MS Forms error alerts & HTML5 bounds.             |
+|      - Resolves format errors (e.g. "7-10LPA" -> pure number "10").               |
+|      - Resolves notice period text ("Immediate") to numeric days ("0").           |
+|      - CONFLICT POLICY (DO NOT FILL): If form strictly contradicts profile        |
+|        (e.g. Profile is 0 Yrs / 0 LPA / 0 Days, but Form requires > 1 or > 0):    |
+|        * Never fabricates fake numbers (no setting 2 for 0).                      |
+|        * Clears input (leaves empty).                                             |
+|        * Highlights card with amber border (.gfaf-conflict-highlight).            |
+|        * Renders conflict pill: "Conflict: Profile is 0 Yrs (Form requires > 1)". |
+|        * Sets status badge: "Not Filled (Conflict)".                              |
+|                                                                                   |
+|  [ 6. Global Second-Pass Validation Sweep ]                                       |
+|      - Re-checks all questions across the page to ensure zero lingering errors.   |
++-----------------------------------------------------------------------------------+
+```
 
 ---
 
 ## Key Features
 
-### 1. RAG Knowledge Base & Dynamic Answer Synthesis
-- **Resume Upload**: Upload resumes (`.pdf`, `.docx`, `.md`, `.txt`) to automatically chunk and index your work experience, metrics, and achievements.
-- **1-Click GitHub Repository README Ingestion**: Paste any GitHub repo URL (e.g. `https://github.com/username/project`) to pull system architecture, performance stats, and engineering details into the local knowledge base.
-- **Job Description (JD) Target Alignment**: Live in-session JD input drawer above the dock aligns all synthesized answers to specific job criteria without persisting JD data.
-- **Local Ollama Integration**: 100% free, 100% private offline generation (supports `llama3.2`, `deepseek-r1`, `mistral`, `phi3`).
-- **Cloud LLM Support**: Strategy pattern support for Google Gemini, OpenAI (`gpt-4o-mini`), and Anthropic Claude.
-- **Grounded Responses**: Generates truthful, first-person candidate answers for tough technical and essay questions (e.g. *"Explain the hardest bug you personally debugged"*, *"Describe your architecture"*).
+### 1. AI-First Decision Pipeline & Grounded Synthesis
+- **AI Decision Engine**: Every form question is evaluated by an LLM to decide the exact value, choice selection, or essay response.
+- **RAG Knowledge Base**: Upload your Resume (`.pdf`, `.docx`, `.md`, `.txt`) and ingest GitHub repository READMEs with 1-click to auto-synthesize factual, first-person project descriptions and system architecture details.
+- **Job Description (JD) Target Alignment**: Live in-session JD input drawer aligns synthesized answers to specific job criteria without persisting JD data.
+- **Multi-Provider Support**: Switch seamlessly between **Local Ollama** (100% offline & private), **Google Gemini**, **OpenAI GPT-4o-mini**, and **Anthropic Claude**.
 
-### 2. Intelligent Numeric & Text Input Formatting
-- **Expected CTC**: Fills `"7 - 12 LPA"` for standard text inputs, `"10"` for LPA-bounded inputs, and `"1000000"` for INR digit inputs.
-- **Notice Period**: Fills `"Immediate"` for text fields and `"0"` for `Notice period (In days)` whole number fields.
-- **Education & GPA**: Fills `"2025"` for graduation year, and pure numbers `"92.5"` / `"8.8"` for numeric percentages/CGPA.
-- **Skills-Driven Tech Stack Matching**: Evaluates single-choice radio buttons and checkboxes against your configured skills list with 100% precision.
+### 2. Profile Ground Truth Guard (Zero Hallucinations)
+- **Honest Candidate Data**: Total experience, current CTC, and notice period are strictly locked to candidate facts:
+  - **Total Experience**: `0` (Fresher / Student)
+  - **Current CTC**: `0` (0 LPA / Fresher)
+  - **Notice Period**: `Immediate` (Text) or `0` (Numeric Days)
+  - **Expected CTC**: `7 - 10 LPA` (Text) or `10` (Numeric LPA)
+- **Anti-Confusion Filter**: Prevents the AI from accidentally using skill proficiency years (e.g., *2 years of Python*) as total professional work experience.
 
-### 3. Modern Floating Assistant & Options Dashboard
-- **In-Page Floating Dock Widget**: Minimalist profile dropdown placed directly beside the Auto-Fill button, with an optional Job Description drawer.
-- **Clean UI Standards**: Rounded corners, pill-shaped buttons, smooth transitions, and **strictly zero emojis** (using crisp SVG icons).
-- **Multi-Profile Management**: Maintain multiple candidate profiles (e.g. *AI Engineer*, *Backend SDE*, *Full Stack*).
-- **Security & Encryption**: Web Crypto API AES-GCM-256 password-protected backup exports, anti-XSS sanitization, anti-SSRF host allowlists, and API key redaction.
+### 3. Constraint Conflict Engine (Do Not Fill on Conflict)
+- **No Fabricated Data**: If a Google Form or Microsoft Form enforces an arbitrary validation rule (e.g., `Must be a number greater than 1`) that contradicts the candidate's actual profile (`0` Yrs / `0` LPA):
+  - The engine **refuses to invent fake data** (no bumping `0` to `2`).
+  - **Clears the field** and leaves it empty.
+  - Highlights the container in amber (`.gfaf-conflict-highlight`).
+  - Displays a prominent **Conflict Badge** on the right side:
+    - `Conflict: Profile is 0 Yrs (Form requires > 1)`
+    - `Conflict: Profile is 0 LPA (Form requires > 1)`
+    - `Conflict: Profile is 0 Days (Form requires > 0)`
+  - Displays status pill: `Not Filled (Conflict)`.
+
+### 4. Right-Side Information & Context Badges
+- **Context Info Pills**: Displays candidate profile facts on the top-right of question cards:
+  - Total Experience: `Profile: Fresher (0 Yrs)`
+  - Current CTC: `Profile: 0 LPA (Fresher)`
+  - Expected CTC: `Profile Expected: 7 - 10 LPA`
+  - Notice Period: `Profile: Immediate (0 Days)`
+- **Auto-Fill Status**: Displays `Auto-filled (100%)` or `Auto-filled via AI` with clean pill-shaped styling.
+
+### 5. Modern UI & Floating Assistant
+- **In-Page Floating Dock Widget**: Minimalist profile switcher, auto-fill trigger, and collapsible JD drawer.
+- **Per-Question AI Answer Buttons**: Discrete, modern pill buttons for individual column generation.
+- **Clean Aesthetic Standards**: Dynamic rounded corners, pill-shaped buttons, glassmorphism accents, and **strictly zero emojis** (using clean SVG icons).
+- **Security & Privacy**: Client-side AES-GCM-256 encrypted backups, host allowlists, and complete local processing options.
 
 ---
 
-## System Requirements & Laptop Specifications
+## System Requirements
 
-Depending on whether you use **Cloud AI / Profile Matching** or **Local Offline Ollama**, the recommended laptop specifications are as follows:
-
-### 1. Standard Mode / Cloud AI (Gemini, OpenAI, Claude, Rule Matching)
-The extension itself is extremely lightweight and runs smoothly in Google Chrome on almost any laptop or desktop.
+### 1. Cloud Mode (Gemini, OpenAI, Claude, Local Matcher)
+The extension is ultra-lightweight and runs smoothly in Google Chrome on any standard machine.
 
 | Component | Minimum Specification | Recommended Specification |
 | :--- | :--- | :--- |
 | **Processor (CPU)** | Dual-Core Intel Core i3 / AMD Ryzen 3 | Quad-Core Intel Core i5 / AMD Ryzen 5 / Apple Silicon M1+ |
 | **RAM** | 4 GB | 8 GB or higher |
 | **Storage** | 100 MB free disk space | 500 MB SSD |
-| **Operating System** | Windows 10/11, macOS 11+, Linux | Windows 11 / macOS latest / Ubuntu 22.04+ |
 | **Browser** | Google Chrome 100+, Edge, Brave, Arc | Latest Google Chrome / Chromium-based browser |
-| **Internet** | Required for Cloud APIs (Gemini/OpenAI) | Stable broadband connection |
 
 ---
 
-### 2. Local AI & Offline Mode (Ollama On-Device LLMs)
-If you run **Local Ollama** models (such as `llama3.2`, `deepseek-r1`, `phi3`, `mistral`) completely offline on your laptop:
+### 2. Local AI Mode (Ollama Offline LLMs)
+If running local on-device models (`llama3.2`, `deepseek-r1`, `mistral`, `phi3`):
 
 | Specification Tier | Target Models | CPU | RAM | GPU / VRAM | Free SSD Storage |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Entry-Level (Smooth CPU)** | `llama3.2:1b`, `llama3.2:3b`, `phi3:mini` | Intel i5 (8th Gen+) / AMD Ryzen 5 (3000+) / Apple M1 | 8 GB | Integrated (Intel Iris Xe, AMD Radeon, or Apple M1/M2) | 10 GB SSD |
-| **Recommended (Fast / High Quality)** | `llama3.2:3b`, `mistral:7b`, `deepseek-r1:7b` | Intel i7 (11th Gen+) / AMD Ryzen 7 (5000+) / Apple Silicon M-Series | 16 GB | NVIDIA GTX 1650 / RTX 3050 / RTX 4050+ (4 GB - 6 GB VRAM) | 20 GB NVMe SSD |
-| **Power User / Heavy RAG** | `llama3.1:8b`, `deepseek-r1:8b`, `qwen2.5:7b` | Intel Core i7/i9 (12th Gen+) / AMD Ryzen 7/9 / Apple M-Pro/Max | 16 GB – 32 GB | NVIDIA RTX 3060 / 4060 / 4070+ (8 GB+ VRAM) or Apple Unified 16GB+ | 30 GB NVMe SSD |
-
-> [!TIP]
-> For everyday laptops with 8 GB RAM and no dedicated GPU, **`llama3.2:3b`** or **`llama3.2:1b`** provides instant generation speeds with minimal memory footprint! If you prefer zero local resource usage, simply use the built-in **Google Gemini 1.5 Flash** or **OpenAI GPT-4o-mini** cloud options.
+| **Entry-Level (CPU)** | `llama3.2:1b`, `llama3.2:3b`, `phi3:mini` | Intel i5 (8th Gen+) / Ryzen 5 (3000+) / Apple M1 | 8 GB | Integrated (Iris Xe, AMD Radeon, M1/M2) | 10 GB SSD |
+| **Recommended (Fast)** | `llama3.2:3b`, `mistral:7b`, `deepseek-r1:7b` | Intel i7 (11th Gen+) / Ryzen 7 (5000+) / Apple Silicon | 16 GB | NVIDIA GTX 1650 / RTX 3050+ (4 GB - 6 GB VRAM) | 20 GB NVMe SSD |
+| **Power User (Heavy RAG)** | `llama3.1:8b`, `deepseek-r1:8b`, `qwen2.5:7b` | Intel Core i7/i9 (12th Gen+) / Ryzen 7/9 / Apple M-Pro | 16 GB – 32 GB | NVIDIA RTX 3060 / 4060+ (8 GB+ VRAM) or Apple Unified 16GB+ | 30 GB NVMe SSD |
 
 ---
 
@@ -75,31 +133,45 @@ If you run **Local Ollama** models (such as `llama3.2`, `deepseek-r1`, `phi3`, `
 
 ---
 
-## How to Install in Google Chrome
+## Installation in Google Chrome
 
 1. Navigate to `chrome://extensions/` in Google Chrome.
-2. Enable **Developer mode** (top right).
-3. Click **Load unpacked** and select `c:\Projects\GFAF`. If already loaded, click the circular **Reload** icon on the Fillvyn card.
-4. Pin the Fillvyn extension to your toolbar.
-5. Open your candidate dashboard to upload your Resume and add your GitHub Project READMEs!
+2. Enable **Developer mode** (top right toggle).
+3. Click **Load unpacked** and select the extension directory (`c:\Projects\GFAF`).
+4. Pin the extension to your Chrome toolbar.
+5. Open your Options page to configure your Profile, upload your Resume, and connect your GitHub projects!
 
 ---
 
-## Running the Automated Test Suite
+## Automated Test Suites
+
+Run the automated test suites from the project root:
 
 ```bash
-# Run benchmark matcher tests
+# Test AI Post-Validation & Constraint Conflict Engine
+node test/test-post-validation.js
+
+# Test Profile Ground Truth Guard & Anti-Hallucination
+node test/test-profile-validation-guard.js
+
+# Test AI-First Form Decision & Filling Pipeline
+node test/test-ai-first-form-filler.js
+
+# Test Benchmark Matcher
 node test/test-matcher.js
 
-# Run DOM simulation tests
+# Test Full DOM Simulation
 node test/test-dom-filler.js
 
-# Run RAG document parser and GitHub README tests
+# Test RAG Document Parser & GitHub Ingestion
 node test/test-rag-parser.js
 
-# Run RAG semantic chunking & hybrid BM25 retrieval tests
+# Test RAG Semantic Retrieval & Chunking
 node test/test-rag-retrieval.js
-
-# Run local Ollama RAG prompt generation test
-node test/test-ollama-rag.js
 ```
+
+---
+
+## License
+
+MIT License — free for personal, candidate, and commercial use.

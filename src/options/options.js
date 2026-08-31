@@ -237,11 +237,13 @@ async function loadProfilesAndSettings() {
   setVal('field-totalExperienceYears', currentProfile.professional?.totalExperienceYears);
   setVal('field-noticePeriod', currentProfile.professional?.noticePeriod);
   setVal('field-noticePeriodDays', currentProfile.professional?.noticePeriodDays || '0');
-  setVal('field-canJoinImmediately', currentProfile.professional?.canJoinImmediately);
-  setVal('field-hoursCommitmentConfirmed', currentProfile.professional?.hoursCommitmentConfirmed);
+  setVal('field-canJoinImmediately', currentProfile.professional?.canJoinImmediately || 'Yes');
+  setVal('field-hoursCommitmentConfirmed', currentProfile.professional?.hoursCommitmentConfirmed || 'Yes');
   setVal('field-currentCtc', currentProfile.professional?.currentCtc);
+  setVal('field-currentCtcLpa', currentProfile.professional?.currentCtcLpa !== undefined ? currentProfile.professional?.currentCtcLpa : '0');
   setVal('field-currentCtcNumeric', currentProfile.professional?.currentCtcNumeric);
   setVal('field-expectedCtc', currentProfile.professional?.expectedCtc);
+  setVal('field-expectedCtcLpa', currentProfile.professional?.expectedCtcLpa !== undefined ? currentProfile.professional?.expectedCtcLpa : '10');
   setVal('field-expectedCtcNumeric', currentProfile.professional?.expectedCtcNumeric);
   setVal('field-stipendExpectation', currentProfile.professional?.stipendExpectation);
   setVal('field-stipendExpectationNumeric', currentProfile.professional?.stipendExpectationNumeric);
@@ -1195,11 +1197,24 @@ async function saveCurrentProfile() {
     canJoinImmediately: getVal('field-canJoinImmediately'),
     hoursCommitmentConfirmed: getVal('field-hoursCommitmentConfirmed'),
     currentCtc: getVal('field-currentCtc'),
-    currentCtcLpa: getVal('field-currentCtc'),
-    currentCtcNumeric: getVal('field-currentCtcNumeric'),
+    currentCtcLpa: (() => {
+      const explicit = getVal('field-currentCtcLpa');
+      if (explicit) return explicit;
+      const raw = getVal('field-currentCtc');
+      if (raw.toLowerCase().includes('na') || raw.toLowerCase().includes('not') || raw.toLowerCase().includes('0') || raw.toLowerCase().includes('fresher')) return '0';
+      const m = raw.match(/\d+(\.\d+)?/);
+      return m ? m[0] : '0';
+    })(),
+    currentCtcNumeric: getVal('field-currentCtcNumeric') || '0',
     expectedCtc: getVal('field-expectedCtc'),
-    expectedCtcLpa: getVal('field-expectedCtc'),
-    expectedCtcNumeric: getVal('field-expectedCtcNumeric'),
+    expectedCtcLpa: (() => {
+      const explicit = getVal('field-expectedCtcLpa');
+      if (explicit) return explicit;
+      const raw = getVal('field-expectedCtc');
+      const nums = raw.match(/\d+(\.\d+)?/g);
+      return nums ? (nums.length > 1 ? nums[1] : nums[0]) : '10';
+    })(),
+    expectedCtcNumeric: getVal('field-expectedCtcNumeric') || '1000000',
     stipendExpectation: getVal('field-stipendExpectation'),
     stipendExpectationNumeric: getVal('field-stipendExpectationNumeric')
   };

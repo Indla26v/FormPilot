@@ -164,6 +164,30 @@ global.HTMLTextAreaElement = MockElement;
 global.Event = class { constructor(type) { this.type = type; } };
 global.KeyboardEvent = class { constructor(type) { this.type = type; } };
 
+global.fetch = async (url, opts) => {
+  let bodyObj = {};
+  try { bodyObj = typeof opts?.body === 'string' ? JSON.parse(opts.body) : {}; } catch (e) {}
+  const fullText = (bodyObj?.messages?.map((m) => m.content).join(' ') || JSON.stringify(bodyObj) || '');
+  const questionMatch = fullText.match(/Question Text:\s*"([^"]+)"/i) || fullText.match(/QUESTION TO EVALUATE:\s*([^"\n]+)/i);
+  const qText = (questionMatch ? questionMatch[1] : fullText).toLowerCase();
+
+  let responseJson = { decisionType: 'strict_profile', value: 'Alex Morgan', confidence: 0.98 };
+  if (qText.includes('must be a number') || qText.includes('in inr')) {
+    responseJson = { decisionType: 'strict_profile', value: '1000000', confidence: 0.98 };
+  } else if (qText.includes('expected ctc')) {
+    responseJson = { decisionType: 'strict_profile', value: '10', confidence: 0.98 };
+  } else if (qText.includes('10th percentage')) {
+    responseJson = { decisionType: 'strict_profile', value: '92.5', confidence: 0.98 };
+  } else if (qText.includes('when did you graduate')) {
+    responseJson = { decisionType: 'choice_selection', value: 'I am in my last year', confidence: 0.95 };
+  }
+
+  return {
+    ok: true,
+    json: async () => ({ message: { content: JSON.stringify(responseJson) } })
+  };
+};
+
 console.log('----------------------------------------------------');
 console.log('TESTING GOOGLE FORMS DOM AUTO-FILLER ENGINE (TEXT & NUMERIC)');
 console.log('----------------------------------------------------\n');
