@@ -227,20 +227,57 @@
 
         <!-- 2. Education Tab -->
         <section class="tab-pane" id="tab-education">
+          <!-- 2.1 Secondary & Higher Secondary (10th & 12th) -->
           <div class="section-card">
-            <h3 class="section-title">College & Academic Status</h3>
+            <h3 class="section-title">10th & 12th Schooling (School Name & Numeric Marks)</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label" for="field-tenthSchoolName">10th School / Board Name</label>
+                <input type="text" id="field-tenthSchoolName" class="form-input" placeholder="e.g. St. Xavier High School / CBSE" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-tenthPercentageNumeric">10th Marks / Percentage (Numeric)</label>
+                <input type="text" id="field-tenthPercentageNumeric" class="form-input" placeholder="e.g. 92.5" />
+                <span class="form-hint">Pure numeric value (e.g. 92.5 or 9.5)</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-twelfthSchoolName">12th School / Junior College Name</label>
+                <input type="text" id="field-twelfthSchoolName" class="form-input" placeholder="e.g. National Junior College / State Board" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-twelfthPercentageNumeric">12th Marks / Percentage (Numeric)</label>
+                <input type="text" id="field-twelfthPercentageNumeric" class="form-input" placeholder="e.g. 94.0" />
+                <span class="form-hint">Pure numeric value (e.g. 94.0 or 9.2)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2.2 Undergraduate / Graduation -->
+          <div class="section-card">
+            <h3 class="section-title">Undergraduate / Graduation Details</h3>
             <div class="form-grid">
               <div class="form-group full-width">
                 <label class="form-label" for="field-collegeName">College / University / Institute Name</label>
                 <input type="text" id="field-collegeName" class="form-input" placeholder="e.g. University of Technology" />
               </div>
               <div class="form-group">
-                <label class="form-label" for="field-degree">Degree & Branch</label>
-                <input type="text" id="field-degree" class="form-input" placeholder="e.g. B.S. in Computer Science & Engineering" />
+                <label class="form-label" for="field-degree">Degree</label>
+                <input type="text" id="field-degree" class="form-input" placeholder="e.g. B.Tech, B.E., B.S., BCA, B.Sc" />
+                <span class="form-hint">Undergraduate Degree qualification</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-branch">Branch / Specialization</label>
+                <input type="text" id="field-branch" class="form-input" placeholder="e.g. Computer Science & Engineering, IT, AI" />
+                <span class="form-hint">Major branch or stream</span>
               </div>
               <div class="form-group">
                 <label class="form-label" for="field-graduationYear">Graduation Year</label>
                 <input type="text" id="field-graduationYear" class="form-input" placeholder="e.g. 2025" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="field-graduationCgpaNumeric">Graduation CGPA / Percentage (Numeric)</label>
+                <input type="text" id="field-graduationCgpaNumeric" class="form-input" placeholder="e.g. 8.8" />
+                <span class="form-hint">Numeric CGPA (e.g. 8.8) or percentage</span>
               </div>
               <div class="form-group">
                 <label class="form-label" for="field-graduationStatus">Graduation Status (Radio Choice)</label>
@@ -255,32 +292,36 @@
             </div>
           </div>
 
+          <!-- 2.3 Post Graduation / Master's -->
           <div class="section-card">
-            <h3 class="section-title">Grades & Percentage (Text & Numeric)</h3>
+            <h3 class="section-title">Post Graduation / Master's (Optional)</h3>
             <div class="form-grid">
-              <div class="form-group">
-                <label class="form-label" for="field-tenthPercentage">10th Percentage (Text: e.g. 92.5%)</label>
-                <input type="text" id="field-tenthPercentage" class="form-input" placeholder="e.g. 92.5%" />
+              <div class="form-group full-width">
+                <label class="form-label" for="field-pgCollegeName">Post Graduation College / University Name</label>
+                <input type="text" id="field-pgCollegeName" class="form-input" placeholder="e.g. Stanford University / IIT / BITS" />
               </div>
               <div class="form-group">
-                <label class="form-label" for="field-tenthPercentageNumeric">10th (Numeric only)</label>
-                <input type="text" id="field-tenthPercentageNumeric" class="form-input" placeholder="e.g. 92.5" />
+                <label class="form-label" for="field-pgDegree">PG Degree</label>
+                <input type="text" id="field-pgDegree" class="form-input" placeholder="e.g. M.S., M.Tech, MBA, MCA, M.Sc" />
+                <span class="form-hint">Master's degree qualification</span>
               </div>
               <div class="form-group">
-                <label class="form-label" for="field-twelfthPercentage">12th Percentage (Text: e.g. 94.0%)</label>
-                <input type="text" id="field-twelfthPercentage" class="form-input" placeholder="e.g. 94.0%" />
+                <label class="form-label" for="field-pgBranch">PG Branch / Specialization</label>
+                <input type="text" id="field-pgBranch" class="form-input" placeholder="e.g. Artificial Intelligence, Data Science, CSE" />
+                <span class="form-hint">Master's specialization stream</span>
               </div>
               <div class="form-group">
-                <label class="form-label" for="field-twelfthPercentageNumeric">12th (Numeric only)</label>
-                <input type="text" id="field-twelfthPercentageNumeric" class="form-input" placeholder="e.g. 94.0" />
+                <label class="form-label" for="field-pgGraduationYear">PG End Year / Passing Year</label>
+                <input type="text" id="field-pgGraduationYear" class="form-input" placeholder="e.g. 2027" />
               </div>
               <div class="form-group">
-                <label class="form-label" for="field-graduationCgpa">Graduation CGPA (Text: e.g. 8.8 / 10)</label>
-                <input type="text" id="field-graduationCgpa" class="form-input" placeholder="e.g. 8.8 / 10" />
+                <label class="form-label" for="field-pgCgpaNumeric">PG CGPA / Percentage (Numeric)</label>
+                <input type="text" id="field-pgCgpaNumeric" class="form-input" placeholder="e.g. 3.9 or 88" />
+                <span class="form-hint">Numeric CGPA / GPA / percentage</span>
               </div>
-              <div class="form-group">
-                <label class="form-label" for="field-graduationCgpaNumeric">Graduation CGPA (Numeric only)</label>
-                <input type="text" id="field-graduationCgpaNumeric" class="form-input" placeholder="e.g. 8.8" />
+              <div class="form-group full-width">
+                <label class="form-label" for="field-pgGraduationStatus">PG Status (Pursuing / Completed)</label>
+                <input type="text" id="field-pgGraduationStatus" class="form-input" placeholder="e.g. Pursuing, Completed, In Final Semester" />
               </div>
             </div>
           </div>

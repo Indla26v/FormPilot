@@ -15,6 +15,7 @@ import {
   Layers, 
   Eye
 } from 'lucide-react';
+import { SITE_CONFIG } from '../config/site';
 
 export default function ProductShowcase() {
   const [activeTabId, setActiveTabId] = useState<string>('floating-dock');
@@ -119,7 +120,9 @@ export default function ProductShowcase() {
               {/* Action Pill */}
               <div className="pt-4">
                 <a
-                  href="#quickstart"
+                  href={SITE_CONFIG.chromeExtensionUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-slate-900 hover:bg-indigo-600 text-white text-xs sm:text-sm font-semibold transition-all shadow-sm group"
                 >
                   <span>Install Chrome Extension</span>

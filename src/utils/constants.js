@@ -36,17 +36,28 @@ export const DEFAULT_COMMON_DATA = {
     address: '742 Evergreen Terrace, San Francisco, CA 94107'
   },
   education: {
-    collegeName: 'University of Technology',
-    degree: 'B.S. in Computer Science & Engineering',
-    graduationYear: '2025',
-    graduationStatus: 'I am in my last year', // Radio option matching
-    workingStatus: 'Student',
-    tenthPercentage: '92.5%',
+    // 1. 10th & 12th Schooling
+    tenthSchoolName: 'St. Xavier High School',
     tenthPercentageNumeric: '92.5',
-    twelfthPercentage: '94.0%',
+    twelfthSchoolName: 'National Junior College',
     twelfthPercentageNumeric: '94.0',
-    graduationCgpa: '8.8 / 10',
-    graduationCgpaNumeric: '8.8'
+
+    // 2. Undergraduate / Graduation
+    collegeName: 'University of Technology',
+    degree: 'B.S.',
+    branch: 'Computer Science & Engineering',
+    graduationYear: '2025',
+    graduationCgpaNumeric: '8.8',
+    graduationStatus: 'I am in my last year',
+    workingStatus: 'Student',
+
+    // 3. Post Graduation / Master's Details
+    pgCollegeName: '',
+    pgDegree: '',
+    pgBranch: '',
+    pgGraduationYear: '',
+    pgGraduationStatus: '',
+    pgCgpaNumeric: ''
   },
   professional: {
     currentOrganization: 'Acme Labs / Open Source Builder',
@@ -89,17 +100,28 @@ export const DEFAULT_PROFILE = {
 
   // Education Details
   education: {
-    collegeName: 'University of Technology',
-    degree: 'B.S. in Computer Science & Engineering',
-    graduationYear: '2025',
-    graduationStatus: 'I am in my last year', // Radio option matching
-    workingStatus: 'Student',
-    tenthPercentage: '92.5%',
+    // 1. 10th & 12th Schooling
+    tenthSchoolName: 'St. Xavier High School',
     tenthPercentageNumeric: '92.5',
-    twelfthPercentage: '94.0%',
+    twelfthSchoolName: 'National Junior College',
     twelfthPercentageNumeric: '94.0',
-    graduationCgpa: '8.8 / 10',
-    graduationCgpaNumeric: '8.8'
+
+    // 2. Undergraduate / Graduation
+    collegeName: 'University of Technology',
+    degree: 'B.S.',
+    branch: 'Computer Science & Engineering',
+    graduationYear: '2025',
+    graduationCgpaNumeric: '8.8',
+    graduationStatus: 'I am in my last year',
+    workingStatus: 'Student',
+
+    // 3. Post Graduation / Master's Details
+    pgCollegeName: '',
+    pgDegree: '',
+    pgBranch: '',
+    pgGraduationYear: '',
+    pgGraduationStatus: '',
+    pgCgpaNumeric: ''
   },
 
   // Professional & Experience Details
@@ -211,21 +233,79 @@ export const FIELD_DICTIONARY = [
       'base location', 'current address', 'where do you live', 'based out of'
     ]
   },
+  // 10th School / Board Name
+  {
+    fieldPath: 'education.tenthSchoolName',
+    type: 'text',
+    aliases: [
+      '10th school name', '10th school', 'ssc school', '10th institution', 'class 10 school',
+      'matriculation school', '10th board school name', 'school name (10th)', '10th school/institute'
+    ]
+  },
+  // 10th Numeric Percentage / Marks
+  {
+    fieldPath: 'education.tenthPercentageNumeric',
+    numericPath: 'education.tenthPercentageNumeric',
+    type: 'number_or_text',
+    aliases: [
+      '10th percentage / cgpa', '10th percentage', '10th cgpa', '10th marks', 'ssc percentage',
+      '10th %', 'class 10', '10th marks (in %)', '10th gpa'
+    ]
+  },
+  // 12th / Junior College Name
+  {
+    fieldPath: 'education.twelfthSchoolName',
+    type: 'text',
+    aliases: [
+      '12th school name', '12th college name', 'junior college name', 'intermediate college name',
+      '12th school', '12th college', 'inter college', 'hsc school', 'class 12 school',
+      '12th institution', 'school name (12th)'
+    ]
+  },
+  // 12th Numeric Percentage / Marks
+  {
+    fieldPath: 'education.twelfthPercentageNumeric',
+    numericPath: 'education.twelfthPercentageNumeric',
+    type: 'number_or_text',
+    aliases: [
+      '12th percentage / cgpa', '12th percentage', '12th cgpa', '12th marks', 'hsc percentage',
+      '12th %', 'class 12', 'inter percentage', '12th marks (in %)', '12th gpa'
+    ]
+  },
   // College / University
   {
     fieldPath: 'education.collegeName',
     type: 'text',
     aliases: [
       'college/university name', 'college name', 'university name', 'institute name',
-      'college', 'university', 'school name', 'institution'
+      'college', 'university', 'school name', 'institution', 'ug college'
     ]
   },
-  // Degree / Branch
+  // Degree (e.g. B.Tech, B.E., B.S., BCA)
   {
     fieldPath: 'education.degree',
     type: 'text',
     aliases: [
-      'degree', 'qualification', 'highest qualification', 'branch', 'stream', 'major', 'course'
+      'degree', 'ug degree', 'bachelor degree', 'graduation degree', 'undergraduate degree',
+      'course', 'undergraduate course', 'degree name'
+    ]
+  },
+  // Branch / Specialization (e.g. CSE, IT, AI & ML)
+  {
+    fieldPath: 'education.branch',
+    type: 'text',
+    aliases: [
+      'branch', 'stream', 'major', 'specialization', 'department', 'engineering branch',
+      'ug branch', 'discipline', 'field of study'
+    ]
+  },
+  // Combined Degree & Branch
+  {
+    fieldPath: 'education.degreeAndBranch',
+    type: 'text',
+    aliases: [
+      'degree & branch', 'degree & stream', 'qualification', 'highest qualification',
+      'degree and branch', 'degree and stream', 'degree / stream', 'degree / branch'
     ]
   },
   // Year of Graduation (Numeric 4-digit Year)
@@ -235,37 +315,17 @@ export const FIELD_DICTIONARY = [
     type: 'number_or_text',
     aliases: [
       'year of graduation', 'graduation year', 'year of passing', 'passing year', 'passout year',
-      'batch', 'yop', 'year of graduation *', 'graduation year *'
+      'batch', 'yop', 'year of graduation *', 'graduation year *', 'ug passing year', 'ug end year'
     ]
   },
-  // 10th Percentage / CGPA
+  // Graduation Numeric CGPA / Percentage
   {
-    fieldPath: 'education.tenthPercentage',
-    numericPath: 'education.tenthPercentageNumeric',
-    type: 'text_or_number',
-    aliases: [
-      '10th percentage / cgpa', '10th percentage', '10th cgpa', '10th marks', 'ssc percentage',
-      '10th %', 'class 10'
-    ]
-  },
-  // 12th Percentage / CGPA
-  {
-    fieldPath: 'education.twelfthPercentage',
-    numericPath: 'education.twelfthPercentageNumeric',
-    type: 'text_or_number',
-    aliases: [
-      '12th percentage / cgpa', '12th percentage', '12th cgpa', '12th marks', 'hsc percentage',
-      '12th %', 'class 12', 'inter percentage'
-    ]
-  },
-  // Graduation Percentage / CGPA
-  {
-    fieldPath: 'education.graduationCgpa',
+    fieldPath: 'education.graduationCgpaNumeric',
     numericPath: 'education.graduationCgpaNumeric',
-    type: 'text_or_number',
+    type: 'number_or_text',
     aliases: [
       'graduation percentage / cgpa', 'graduation percentage', 'graduation cgpa', 'btech cgpa',
-      'degree percentage', 'ug cgpa', 'current cgpa', 'cgpa'
+      'degree percentage', 'ug cgpa', 'current cgpa', 'cgpa', 'graduation gpa', 'overall cgpa'
     ]
   },
   // Graduation Status (Radio choice: "When did you graduate?")
@@ -276,6 +336,73 @@ export const FIELD_DICTIONARY = [
       'when did you graduate?', 'when did you graduate?*', 'when did you graduate'
     ],
     defaultChoice: 'I am in my last year'
+  },
+  // Post Graduation College / University
+  {
+    fieldPath: 'education.pgCollegeName',
+    type: 'text',
+    aliases: [
+      'post graduation college', 'pg college name', 'post graduate university', 'masters college',
+      'masters university', 'pg institute', 'post graduation institute', 'post-graduation college',
+      'post graduation university', 'mtech college', 'mba college', 'ms college', 'mca college'
+    ]
+  },
+  // Post Graduation Degree (e.g. M.S., M.Tech, MBA, MCA)
+  {
+    fieldPath: 'education.pgDegree',
+    type: 'text',
+    aliases: [
+      'post graduation degree', 'pg degree', 'masters degree', 'post graduate course',
+      'pg course', 'm.tech degree', 'm.s. degree', 'mba degree', 'mca degree', 'masters course'
+    ]
+  },
+  // Post Graduation Branch / Specialization
+  {
+    fieldPath: 'education.pgBranch',
+    type: 'text',
+    aliases: [
+      'post graduation branch', 'pg branch', 'post graduation specialization', 'pg specialization',
+      'masters specialization', 'pg stream', 'post graduation stream', 'masters branch'
+    ]
+  },
+  // Combined Post Graduation Degree & Branch
+  {
+    fieldPath: 'education.pgDegreeAndBranch',
+    type: 'text',
+    aliases: [
+      'post graduation degree & branch', 'pg degree & specialization', 'masters degree & specialization',
+      'post graduate qualification', 'pg qualification'
+    ]
+  },
+  // Post Graduation Passing / End Year
+  {
+    fieldPath: 'education.pgGraduationYear',
+    numericPath: 'education.pgGraduationYear',
+    type: 'number_or_text',
+    aliases: [
+      'post graduation year', 'pg graduation year', 'post graduation passing year', 'pg passing year',
+      'pg year of passing', 'pg passout year', 'masters graduation year', 'masters passing year',
+      'post graduation end year', 'pg end year', 'year of post graduation'
+    ]
+  },
+  // Post Graduation Numeric CGPA / Percentage
+  {
+    fieldPath: 'education.pgCgpaNumeric',
+    numericPath: 'education.pgCgpaNumeric',
+    type: 'number_or_text',
+    aliases: [
+      'post graduation cgpa', 'pg cgpa', 'masters cgpa', 'post graduation percentage',
+      'pg percentage', 'post graduation marks', 'pg marks', 'masters percentage', 'post graduation gpa',
+      'pg gpa', 'masters grade', 'pg grade'
+    ]
+  },
+  // Post Graduation Status
+  {
+    fieldPath: 'education.pgGraduationStatus',
+    type: 'choice_or_text',
+    aliases: [
+      'post graduation status', 'pg status', 'are you pursuing post graduation', 'masters status'
+    ]
   },
   // Working Status
   {

@@ -2,7 +2,8 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { Sparkles, Github, ShieldCheck, Terminal, Heart } from 'lucide-react';
+import { Sparkles, Github, ShieldCheck, Terminal, Heart, Chrome } from 'lucide-react';
+import { SITE_CONFIG } from '../config/site';
 
 export default function Footer() {
   return (
@@ -72,6 +73,17 @@ export default function Footer() {
               <li>
                 <a href="/contact" className="hover:text-indigo-400 transition-colors">
                   Contact
+                </a>
+              </li>
+              <li>
+                <a
+                  href={SITE_CONFIG.chromeExtensionUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-indigo-400 transition-colors flex items-center gap-1.5"
+                >
+                  <Chrome className="w-3.5 h-3.5" />
+                  <span>Chrome Web Store</span>
                 </a>
               </li>
               <li>

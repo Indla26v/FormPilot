@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Fillvyn - AI Forms Auto-Filler",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "Smart AI job form filler for Google Forms and Microsoft Forms with candidate profile matching and answer synthesis.",
   "permissions": [
     "storage",

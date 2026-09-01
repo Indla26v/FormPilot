@@ -32,6 +32,30 @@ export class FieldMatcherService {
       if (linkKey === 'projectDemoUrl' || linkKey === 'projectDemo') return links.projectDemoUrl || links.projectDemo || links.demoUrl || '';
       if (linkKey === 'resumeUrl' || linkKey === 'resume') return links.resumeUrl || links.resume || links.cvUrl || '';
     }
+    if (path.startsWith('education.')) {
+      const edu = obj.education || {};
+      const eduKey = path.split('.')[1];
+      if (eduKey === 'tenthPercentage' || eduKey === 'tenthPercentageNumeric') {
+        return edu.tenthPercentageNumeric || edu.tenthPercentage || '';
+      }
+      if (eduKey === 'twelfthPercentage' || eduKey === 'twelfthPercentageNumeric') {
+        return edu.twelfthPercentageNumeric || edu.twelfthPercentage || '';
+      }
+      if (eduKey === 'graduationCgpa' || eduKey === 'graduationCgpaNumeric') {
+        return edu.graduationCgpaNumeric || edu.graduationCgpa || '';
+      }
+      if (eduKey === 'pgCgpa' || eduKey === 'pgCgpaNumeric') {
+        return edu.pgCgpaNumeric || edu.pgCgpa || '';
+      }
+      if (eduKey === 'degreeAndBranch') {
+        if (edu.degree && edu.branch) return `${edu.degree} in ${edu.branch}`;
+        return edu.degree || edu.branch || '';
+      }
+      if (eduKey === 'pgDegreeAndBranch') {
+        if (edu.pgDegree && edu.pgBranch) return `${edu.pgDegree} in ${edu.pgBranch}`;
+        return edu.pgDegree || edu.pgBranch || '';
+      }
+    }
     if (path === 'skills' && Array.isArray(obj.skills)) {
       return obj.skills.map((s) => (typeof s === 'object' && s !== null ? s.name : s)).filter(Boolean).join(', ');
     }

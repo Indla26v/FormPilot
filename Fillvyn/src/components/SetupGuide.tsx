@@ -14,6 +14,7 @@ import {
   Layers,
   Sparkles
 } from 'lucide-react';
+import { SITE_CONFIG } from '../config/site';
 
 export default function SetupGuide() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -91,8 +92,26 @@ export default function SetupGuide() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">Step 1: Install in Chrome</h3>
-                  <p className="text-xs text-slate-500 font-medium">Manifest V3 Developer Mode / Web Store</p>
+                  <p className="text-xs text-slate-500 font-medium">Chrome Web Store / Developer Mode</p>
                 </div>
+              </div>
+
+              {/* Direct Web Store 1-Click Install Button */}
+              <div className="p-4 rounded-2xl bg-indigo-50/80 border border-indigo-200/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-bold text-indigo-950">Official Chrome Web Store</div>
+                  <div className="text-[11px] text-indigo-700">1-click instant installation & automatic updates</div>
+                </div>
+                <a
+                  href={SITE_CONFIG.chromeExtensionUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-semibold shadow-md shadow-indigo-500/20 transition-all shrink-0"
+                >
+                  <Chrome className="w-4 h-4" />
+                  <span>Get Extension</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </a>
               </div>
 
               <div className="space-y-4 text-xs sm:text-sm">

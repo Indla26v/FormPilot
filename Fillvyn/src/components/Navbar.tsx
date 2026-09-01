@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Terminal } from 'lucide-react';
+import { SITE_CONFIG } from '../config/site';
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -103,7 +104,9 @@ export default function Navbar() {
               <span>Ollama Docs</span>
             </a>
             <a
-              href="/#quickstart"
+              href={SITE_CONFIG.chromeExtensionUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-md shadow-indigo-500/20 rounded-full transition-all"
             >
               <span>Get Extension</span>
@@ -188,7 +191,9 @@ export default function Navbar() {
             </Link>
             <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
               <a
-                href="/#quickstart"
+                href={SITE_CONFIG.chromeExtensionUrl}
+                target="_blank"
+                rel="noopener noreferrer"
                 onClick={() => setMobileMenuOpen(false)}
                 className="w-full text-center px-4 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-full shadow-sm"
               >

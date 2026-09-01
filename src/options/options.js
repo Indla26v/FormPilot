@@ -218,18 +218,29 @@ async function loadProfilesAndSettings() {
   setVal('field-city', currentProfile.personal?.city);
   setVal('field-address', currentProfile.personal?.address);
 
-  // Populate Education
+  // Populate Education (10th & 12th -> Undergraduate -> Post Graduation)
+  // 1. 10th & 12th Marks & School Names
+  setVal('field-tenthSchoolName', currentProfile.education?.tenthSchoolName);
+  setVal('field-tenthPercentageNumeric', currentProfile.education?.tenthPercentageNumeric || currentProfile.education?.tenthPercentage);
+  setVal('field-twelfthSchoolName', currentProfile.education?.twelfthSchoolName);
+  setVal('field-twelfthPercentageNumeric', currentProfile.education?.twelfthPercentageNumeric || currentProfile.education?.twelfthPercentage);
+
+  // 2. Undergraduate / Graduation (Divided Degree & Branch)
   setVal('field-collegeName', currentProfile.education?.collegeName);
   setVal('field-degree', currentProfile.education?.degree);
+  setVal('field-branch', currentProfile.education?.branch);
   setVal('field-graduationYear', currentProfile.education?.graduationYear);
+  setVal('field-graduationCgpaNumeric', currentProfile.education?.graduationCgpaNumeric || currentProfile.education?.graduationCgpa);
   setVal('field-graduationStatus', currentProfile.education?.graduationStatus);
   setVal('field-workingStatus', currentProfile.education?.workingStatus);
-  setVal('field-tenthPercentage', currentProfile.education?.tenthPercentage);
-  setVal('field-tenthPercentageNumeric', currentProfile.education?.tenthPercentageNumeric);
-  setVal('field-twelfthPercentage', currentProfile.education?.twelfthPercentage);
-  setVal('field-twelfthPercentageNumeric', currentProfile.education?.twelfthPercentageNumeric);
-  setVal('field-graduationCgpa', currentProfile.education?.graduationCgpa);
-  setVal('field-graduationCgpaNumeric', currentProfile.education?.graduationCgpaNumeric);
+
+  // 3. Post Graduation / Master's (Divided PG Degree & Branch)
+  setVal('field-pgCollegeName', currentProfile.education?.pgCollegeName);
+  setVal('field-pgDegree', currentProfile.education?.pgDegree);
+  setVal('field-pgBranch', currentProfile.education?.pgBranch);
+  setVal('field-pgGraduationYear', currentProfile.education?.pgGraduationYear);
+  setVal('field-pgCgpaNumeric', currentProfile.education?.pgCgpaNumeric || currentProfile.education?.pgCgpa);
+  setVal('field-pgGraduationStatus', currentProfile.education?.pgGraduationStatus);
 
   // Populate Experience
   setVal('field-currentOrganization', currentProfile.professional?.currentOrganization);
@@ -1175,17 +1186,28 @@ async function saveCurrentProfile() {
   };
 
   currentProfile.education = {
+    // 1. 10th & 12th Schooling
+    tenthSchoolName: getVal('field-tenthSchoolName'),
+    tenthPercentageNumeric: getVal('field-tenthPercentageNumeric'),
+    twelfthSchoolName: getVal('field-twelfthSchoolName'),
+    twelfthPercentageNumeric: getVal('field-twelfthPercentageNumeric'),
+
+    // 2. Undergraduate / Graduation (Separate Degree & Branch)
     collegeName: getVal('field-collegeName'),
     degree: getVal('field-degree'),
+    branch: getVal('field-branch'),
     graduationYear: getVal('field-graduationYear'),
+    graduationCgpaNumeric: getVal('field-graduationCgpaNumeric'),
     graduationStatus: getVal('field-graduationStatus'),
     workingStatus: getVal('field-workingStatus'),
-    tenthPercentage: getVal('field-tenthPercentage'),
-    tenthPercentageNumeric: getVal('field-tenthPercentageNumeric'),
-    twelfthPercentage: getVal('field-twelfthPercentage'),
-    twelfthPercentageNumeric: getVal('field-twelfthPercentageNumeric'),
-    graduationCgpa: getVal('field-graduationCgpa'),
-    graduationCgpaNumeric: getVal('field-graduationCgpaNumeric')
+
+    // 3. Post Graduation / Master's (Separate PG Degree & PG Branch)
+    pgCollegeName: getVal('field-pgCollegeName'),
+    pgDegree: getVal('field-pgDegree'),
+    pgBranch: getVal('field-pgBranch'),
+    pgGraduationYear: getVal('field-pgGraduationYear'),
+    pgCgpaNumeric: getVal('field-pgCgpaNumeric'),
+    pgGraduationStatus: getVal('field-pgGraduationStatus')
   };
 
   currentProfile.professional = {

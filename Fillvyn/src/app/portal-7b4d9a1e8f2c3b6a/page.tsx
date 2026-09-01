@@ -21,6 +21,9 @@ import {
   Copy,
   Check,
   CheckCircle2,
+  AlertCircle,
+  FolderArchive,
+  HelpCircle,
 } from 'lucide-react';
 import { StoredFeedback, StoredContact, FeedbackSummaryKPIs } from '@/lib/storage/types';
 
@@ -220,6 +223,23 @@ export default function AdminDashboardPage() {
       }
     } catch (err) {
       console.error('Failed to delete feedback:', err);
+    }
+  };
+
+  // Delete Contact
+  const handleDeleteContact = async (id: string) => {
+    if (!confirm('Are you sure you want to permanently delete this contact inquiry?')) return;
+    try {
+      const res = await fetch(`/api/admin/contact?id=${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        setContacts((prev) => prev.filter((item) => item.id !== id));
+      }
+    } catch (err) {
+      console.error('Failed to delete contact inquiry:', err);
     }
   };
 
@@ -537,14 +557,14 @@ export default function AdminDashboardPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search feedback, email, ID..."
+                placeholder={activeTab === 'feedback' ? "Search feedback, email, ID..." : "Search name, subject, email..."}
                 className="w-full pl-10 pr-4 py-2 rounded-full bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
               />
             </div>
 
           </div>
 
-          {/* Filter Chips Bar (Pill Shaped) */}
+          {/* Filter Chips Bar (Pill Shaped) for Feedback */}
           {activeTab === 'feedback' && (
             <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mr-2 flex items-center gap-1">
@@ -594,6 +614,86 @@ export default function AdminDashboardPage() {
                   {c.label}
                 </button>
               ))}
+
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 ml-4 mr-2">
+                Status:
+              </span>
+              {[
+                { label: 'All', value: 'all' },
+                { label: 'New', value: 'new' },
+                { label: 'Reviewed', value: 'reviewed' },
+                { label: 'Starred', value: 'starred' },
+                { label: 'Archived', value: 'archived' },
+              ].map((s) => (
+                <button
+                  key={s.value}
+                  onClick={() => setStatusFilter(s.value)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+                    statusFilter === s.value
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Filter Chips Bar (Pill Shaped) for Contact Inquiries */}
+          {activeTab === 'contact' && (
+            <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
+              
+              {/* 1. Status Filter Pills */}
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mr-2 flex items-center gap-1">
+                <Sliders className="w-3 h-3" />
+                <span>Status:</span>
+              </span>
+              {[
+                { label: 'All Statuses', value: 'all' },
+                { label: 'New', value: 'new', color: 'bg-blue-100 text-blue-900 border-blue-300' },
+                { label: 'In Progress', value: 'in_progress', color: 'bg-amber-100 text-amber-900 border-amber-300' },
+                { label: 'Resolved', value: 'resolved', color: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
+                { label: 'Archived', value: 'archived', color: 'bg-slate-200 text-slate-800 border-slate-400' },
+              ].map((s) => (
+                <button
+                  key={s.value}
+                  onClick={() => setStatusFilter(s.value)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+                    statusFilter === s.value
+                      ? (s.color ? `${s.color} shadow-xs font-bold scale-[1.02]` : 'bg-indigo-600 text-white border-indigo-600 shadow-xs')
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+
+              {/* 2. Category Filter Pills */}
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 ml-4 mr-2">
+                Category:
+              </span>
+              {[
+                { label: 'All', value: 'all' },
+                { label: 'Technical Support', value: 'technical_support' },
+                { label: 'Ollama Integration', value: 'ollama_integration' },
+                { label: 'Feature Request', value: 'feature_request' },
+                { label: 'Bug Report', value: 'bug_report' },
+                { label: 'General Inquiry', value: 'general_inquiry' },
+              ].map((c) => (
+                <button
+                  key={c.value}
+                  onClick={() => setCategoryFilter(c.value)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+                    categoryFilter === c.value
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+
             </div>
           )}
 
@@ -741,69 +841,118 @@ export default function AdminDashboardPage() {
               <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 space-y-2 shadow-sm">
                 <Mail className="w-10 h-10 text-slate-400 mx-auto" />
                 <h3 className="text-base font-bold text-slate-800">No Inquiries Found</h3>
-                <p className="text-xs text-slate-500">No contact messages match your search.</p>
+                <p className="text-xs text-slate-500">
+                  {statusFilter !== 'all' || categoryFilter !== 'all' || searchQuery
+                    ? 'No contact messages match your active filters or search.'
+                    : 'No contact inquiries have been received yet.'}
+                </p>
               </div>
             ) : (
               <div className="space-y-4">
-                {contacts.map((item) => (
-                  <div
-                    key={item.id}
-                    className="bg-white/95 backdrop-blur-md rounded-3xl p-6 border border-slate-200/90 hover:border-indigo-300 shadow-sm space-y-4 transition-all"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-base font-bold text-slate-900">{item.subject}</h4>
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-100">
-                            {item.category.replace('_', ' ')}
+                {contacts.map((item) => {
+                  const getStatusBadge = () => {
+                    switch (item.status) {
+                      case 'resolved':
+                        return (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>Resolved</span>
                           </span>
+                        );
+                      case 'in_progress':
+                        return (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                            <Clock className="w-3 h-3 text-amber-600" />
+                            <span>In Progress</span>
+                          </span>
+                        );
+                      case 'archived':
+                        return (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                            <FolderArchive className="w-3 h-3 text-slate-500" />
+                            <span>Archived</span>
+                          </span>
+                        );
+                      default:
+                        return (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            <AlertCircle className="w-3 h-3 text-blue-600" />
+                            <span>New</span>
+                          </span>
+                        );
+                    }
+                  };
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="bg-white/95 backdrop-blur-md rounded-3xl p-6 border border-slate-200/90 hover:border-indigo-300 shadow-sm space-y-4 transition-all"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-base font-bold text-slate-900">{item.subject}</h4>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-100">
+                              {item.category.replace('_', ' ')}
+                            </span>
+                            {getStatusBadge()}
+                          </div>
+                          <p className="text-xs text-slate-500">
+                            From: <strong className="text-slate-800">{item.name}</strong> &bull;{' '}
+                            <span className="font-mono text-slate-600">{item.email}</span>
+                          </p>
                         </div>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          From: <strong className="text-slate-800">{item.name}</strong> &bull; {item.email}
-                        </p>
+
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={`mailto:${item.email}?subject=Re: ${encodeURIComponent(item.subject)}`}
+                            className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 transition-all shadow-sm"
+                          >
+                            <Mail className="w-3.5 h-3.5" />
+                            <span>Reply via Email</span>
+                          </a>
+
+                          <select
+                            value={item.status}
+                            onChange={(e) =>
+                              handleUpdateContactStatus(
+                                item.id,
+                                e.target.value as StoredContact['status']
+                              )
+                            }
+                            className="px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 focus:outline-none focus:border-indigo-500"
+                          >
+                            <option value="new">New</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="resolved">Resolved</option>
+                            <option value="archived">Archived</option>
+                          </select>
+
+                          <button
+                            onClick={() => handleDeleteContact(item.id)}
+                            className="p-1.5 rounded-full hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors"
+                            title="Delete Inquiry"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={`mailto:${item.email}?subject=Re: ${encodeURIComponent(item.subject)}`}
-                          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 transition-all shadow-sm"
-                        >
-                          <Mail className="w-3.5 h-3.5" />
-                          <span>Reply via Email</span>
-                        </a>
-
-                        <select
-                          value={item.status}
-                          onChange={(e) =>
-                            handleUpdateContactStatus(
-                              item.id,
-                              e.target.value as StoredContact['status']
-                            )
-                          }
-                          className="px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 focus:outline-none focus:border-indigo-500"
-                        >
-                          <option value="new">New</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="resolved">Resolved</option>
-                          <option value="archived">Archived</option>
-                        </select>
+                      <div className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200/80 text-sm text-slate-800 leading-relaxed font-normal">
+                        {item.message}
                       </div>
-                    </div>
 
-                    <div className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200/80 text-sm text-slate-800 leading-relaxed font-normal">
-                      {item.message}
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>{new Date(item.timestamp).toLocaleString()}</span>
+                      <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>{new Date(item.timestamp).toLocaleString()}</span>
+                        </div>
+                        <span className="font-mono text-[10px] text-slate-400">{item.id}</span>
                       </div>
-                      <span className="font-mono text-[10px] text-slate-400">{item.id}</span>
-                    </div>
 
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

@@ -15,6 +15,7 @@ import {
   Terminal, 
   Play
 } from 'lucide-react';
+import { SITE_CONFIG } from '../config/site';
 
 export default function HeroSection() {
   const [filled, setFilled] = useState(false);
@@ -62,7 +63,9 @@ export default function HeroSection() {
           {/* CTA Button Group (Pill-shaped, Modern Clean UI) */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 pt-2 max-w-md sm:max-w-none mx-auto">
             <a
-              href="#quickstart"
+              href={SITE_CONFIG.chromeExtensionUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2.5 px-8 py-3.5 text-base font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-lg shadow-indigo-500/25 rounded-full transition-all group"
             >
               <Sparkles className="w-5 h-5 group-hover:rotate-12 transition-transform" />
