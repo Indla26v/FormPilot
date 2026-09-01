@@ -8,6 +8,8 @@ import {
   IContactNotifier,
   IContactService,
 } from './types';
+import { defaultContactRepository } from '../storage/store';
+import { IContactRepository } from '../storage/types';
 
 const VALID_CATEGORIES: ContactCategory[] = [
   'technical_support',
@@ -79,14 +81,25 @@ export class ContactSanitizer implements IContactSanitizer {
 }
 
 /**
- * OCP / LSP: Extensible notifier implementation.
- * Can be swapped with an EmailNotifier or WebhookNotifier without changing the orchestrator.
+ * OCP / LSP: StoreContactNotifier persists the contact entry in repository and logs to console.
  */
-export class ConsoleContactNotifier implements IContactNotifier {
+export class StoreContactNotifier implements IContactNotifier {
+  constructor(private repo: IContactRepository = defaultContactRepository) {}
+
   async send(payload: ContactPayload, referenceId: string): Promise<boolean> {
-    // In production, this can forward to SendGrid, Resend, or a support webhook.
-    console.log(`[ContactSubmission:${referenceId}] New inquiry from ${payload.name} (${payload.email}) [${payload.category}]: ${payload.subject}`);
-    return true;
+    try {
+      await this.repo.save({
+        ...payload,
+        id: referenceId,
+      });
+      console.log(
+        `[ContactSubmission:${referenceId}] New inquiry from ${payload.name} (${payload.email}) [${payload.category}]: ${payload.subject}`
+      );
+      return true;
+    } catch (err) {
+      console.error(`Failed to save contact inquiry ${referenceId}:`, err);
+      return false;
+    }
   }
 }
 
@@ -97,7 +110,7 @@ export class ContactService implements IContactService {
   constructor(
     private validator: IContactValidator = new ContactValidator(),
     private sanitizer: IContactSanitizer = new ContactSanitizer(),
-    private notifier: IContactNotifier = new ConsoleContactNotifier()
+    private notifier: IContactNotifier = new StoreContactNotifier()
   ) {}
 
   async processInquiry(payload: Partial<ContactPayload>): Promise<ContactSubmissionResult> {

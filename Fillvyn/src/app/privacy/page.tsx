@@ -13,8 +13,6 @@ import {
   Trash2,
   FileCheck,
   Mail,
-  KeyRound,
-  Sparkles,
 } from 'lucide-react';
 
 export const metadata = {
@@ -27,9 +25,10 @@ export default function PrivacyPage() {
     <main className="min-h-screen bg-white text-slate-900 flex flex-col">
       <Navbar />
 
-      {/* Top Hero Banner with Nanobanana Luminous Mesh Background */}
-      <section className="relative pt-32 pb-16 md:pt-36 md:pb-20 overflow-hidden bg-slate-900 text-white">
-        <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-70">
+      {/* Main Single Luminous Section Spanning Full Page */}
+      <section className="relative pt-28 pb-20 md:pt-32 md:pb-28 overflow-hidden bg-white flex-1">
+        {/* Full-page Nanobanana Mesh Background with Luminous Light Gradient Overlay */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-90">
           <Image
             src="/images/bg-privacy.jpg"
             alt="Privacy Luminous Mesh Background"
@@ -37,47 +36,45 @@ export default function PrivacyPage() {
             priority
             className="object-cover object-center"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-slate-950/80 via-slate-900/60 to-slate-950"></div>
+          <div className="absolute inset-0 bg-gradient-to-b from-white/15 via-white/40 to-white/95"></div>
         </div>
 
-        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-6">
+        {/* Ambient Radial Glowing Lights */}
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-tr from-indigo-200/40 via-purple-200/30 to-blue-200/40 blur-3xl rounded-full pointer-events-none"></div>
+        <div className="absolute top-[600px] left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-gradient-to-br from-purple-100/30 via-indigo-100/20 to-transparent blur-3xl rounded-full pointer-events-none"></div>
+
+        <div className="relative max-w-5xl mx-auto px-6 sm:px-10 lg:px-12 space-y-8">
+          
+          {/* Top Bar with Back Button to the Left */}
+          <div>
             <Link
               href="/"
-              className="inline-flex items-center gap-2 text-xs font-semibold text-indigo-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 px-4 py-2 rounded-full border border-slate-700 transition-colors"
+              className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 hover:text-indigo-600 bg-white/90 hover:bg-slate-50 px-4 py-2 rounded-full border border-slate-200 shadow-xs transition-all active:scale-95"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Back to Home</span>
             </Link>
           </div>
 
-          <div className="space-y-4 max-w-3xl">
-            <div className="inline-flex items-center gap-2 bg-indigo-950 text-indigo-300 text-xs font-semibold px-3.5 py-1.5 rounded-full border border-indigo-800">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          {/* Compact Single Header */}
+          <div className="space-y-3 max-w-3xl">
+            <div className="inline-flex items-center gap-2 bg-indigo-50 border border-indigo-200/80 text-indigo-700 text-xs font-bold px-3.5 py-1.5 rounded-full uppercase tracking-wider">
+              <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
               <span>Data Protection & Privacy Architecture</span>
             </div>
-            <h1 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight">
+            <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight leading-tight">
               Privacy Policy for Fillvyn
             </h1>
-            <p className="text-sm sm:text-base text-slate-300 leading-relaxed font-normal">
+            <p className="text-xs sm:text-base text-slate-600 leading-relaxed font-normal">
               Fillvyn is architected on a zero-knowledge, privacy-first model. Your candidate profiles, resume embeddings, and form inputs remain completely under your control on your local device.
             </p>
-            <div className="pt-2 text-xs font-mono text-slate-400">
+            <div className="pt-1 text-[11px] font-mono text-slate-500">
               Effective Date: August 31, 2026 &bull; Version 1.0.1
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* Main Content Area */}
-      <section className="flex-1 relative py-16 md:py-24 bg-slate-50/50">
-        {/* Ambient subtle light */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-indigo-100/40 blur-3xl rounded-full pointer-events-none"></div>
-
-        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-          
           {/* Executive Summary Card */}
-          <div className="p-7 sm:p-8 bg-white rounded-3xl border border-indigo-100 shadow-xl space-y-4">
+          <div className="p-7 sm:p-8 bg-white/95 backdrop-blur-md rounded-3xl border border-indigo-100 shadow-xl space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
                 <Lock className="w-5 h-5" />
@@ -92,11 +89,11 @@ export default function PrivacyPage() {
             </p>
           </div>
 
-          {/* Policy Sections Grid / Cards */}
+          {/* Policy Sections Cards */}
           <div className="space-y-6">
             
             {/* Section 1: Local Device Storage */}
-            <div className="p-7 sm:p-8 bg-white rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <div className="p-7 sm:p-8 bg-white/95 backdrop-blur-md rounded-3xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
                   <Database className="w-4 h-4" />
@@ -113,7 +110,7 @@ export default function PrivacyPage() {
             </div>
 
             {/* Section 2: AI Processing & LLMs */}
-            <div className="p-7 sm:p-8 bg-white rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <div className="p-7 sm:p-8 bg-white/95 backdrop-blur-md rounded-3xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
                   <Cpu className="w-4 h-4" />
@@ -147,7 +144,7 @@ export default function PrivacyPage() {
             </div>
 
             {/* Section 3: Telemetry & Analytics */}
-            <div className="p-7 sm:p-8 bg-white rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <div className="p-7 sm:p-8 bg-white/95 backdrop-blur-md rounded-3xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center">
                   <EyeOff className="w-4 h-4" />
@@ -160,7 +157,7 @@ export default function PrivacyPage() {
             </div>
 
             {/* Section 4: DOM Interaction & Security */}
-            <div className="p-7 sm:p-8 bg-white rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <div className="p-7 sm:p-8 bg-white/95 backdrop-blur-md rounded-3xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
                   <FileCheck className="w-4 h-4" />
@@ -173,7 +170,7 @@ export default function PrivacyPage() {
             </div>
 
             {/* Section 5: Data Rights & Deletion */}
-            <div className="p-7 sm:p-8 bg-white rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <div className="p-7 sm:p-8 bg-white/95 backdrop-blur-md rounded-3xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
                   <Trash2 className="w-4 h-4" />
@@ -186,7 +183,7 @@ export default function PrivacyPage() {
             </div>
 
             {/* Section 6: Contact & Inquiries */}
-            <div className="p-7 sm:p-8 bg-gradient-to-r from-slate-900 to-indigo-950 rounded-3xl text-white shadow-xl space-y-4">
+            <div className="p-7 sm:p-8 bg-slate-900/95 backdrop-blur-md rounded-3xl text-white shadow-xl space-y-4 border border-slate-800">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-2xl bg-indigo-600 text-white flex items-center justify-center">
                   <Mail className="w-4 h-4" />
@@ -206,7 +203,7 @@ export default function PrivacyPage() {
                 </Link>
                 <a
                   href="mailto:fillvyn.support@gmail.com"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-medium text-slate-300 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 transition-colors"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors"
                 >
                   <span>fillvyn.support@gmail.com</span>
                 </a>

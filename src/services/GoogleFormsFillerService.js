@@ -921,6 +921,54 @@ export class GoogleFormsFillerService {
   }
 
   /**
+   * Extract high-level form context: Form Title, Subtitle / Description, and overview of questions
+   */
+  static extractFormContext(rootDoc = null) {
+    const doc = rootDoc || (typeof document !== 'undefined' ? document : null);
+    if (!doc) return { formTitle: '', formDescription: '', allQuestions: [] };
+
+    let formTitle = '';
+    let formDescription = '';
+
+    // 1. Google Forms Form Title
+    const gfTitleEl = doc.querySelector('.F9N7Re, .freebirdFormviewerViewHeaderTitle, [role="heading"][aria-level="1"], .ahS2Le, div.M7eMe');
+    if (gfTitleEl) {
+      formTitle = (gfTitleEl.innerText || gfTitleEl.textContent || '').trim();
+    }
+
+    // 2. Microsoft Forms Form Title
+    if (!formTitle) {
+      const msTitleEl = doc.querySelector('.office-form-title, span[data-automation-id="formTitle"], .form-title');
+      if (msTitleEl) {
+        formTitle = (msTitleEl.innerText || msTitleEl.textContent || '').trim();
+      }
+    }
+
+    // 3. Document Title fallback
+    if (!formTitle && doc.title) {
+      formTitle = doc.title.replace(/\s*-\s*Google Forms\s*$/i, '').replace(/\s*-\s*Microsoft Forms\s*$/i, '').trim();
+    }
+
+    // Form Subtitle / Description
+    const descEl = doc.querySelector('.freebirdFormviewerViewHeaderDescription, .gHjhdc, .jibhHc, .vRMGwf, .office-form-subtitle, span[data-automation-id="formSubtitle"]');
+    if (descEl) {
+      formDescription = (descEl.innerText || descEl.textContent || '').trim();
+    }
+
+    // Overview of all questions
+    const questionEls = this.findQuestionContainers(doc);
+    const allQuestions = questionEls
+      .map((c) => this.extractQuestionText(c).split('\n')[0].trim())
+      .filter(Boolean);
+
+    return {
+      formTitle,
+      formDescription,
+      allQuestions
+    };
+  }
+
+  /**
    * Main scan and fill pipeline on the active form
    * AI-FIRST FORM DECISION & FILLING ENGINE WITH POST-VALIDATION:
    * 1. Extracts every question container and contextual requirements.
@@ -946,12 +994,12 @@ export class GoogleFormsFillerService {
     this.injectAiButtonsToAllInputs(profile);
 
     const sessionJd = settings.jobDescription || (typeof window !== 'undefined' ? window.__GFAF_SESSION_JD__ : '') || '';
+    const formContext = this.extractFormContext();
 
     // Process every question through the AI Evaluation Engine
     for (let i = 0; i < containers.length; i++) {
       const container = containers[i];
       const questionText = this.extractQuestionText(container);
-
       if (!questionText) {
         results.skippedCount++;
         continue;
@@ -997,7 +1045,8 @@ export class GoogleFormsFillerService {
           options: availableOptions,
           profile: profile,
           retrievedChunks: chunks,
-          jobDescription: sessionJd
+          jobDescription: sessionJd,
+          formContext: formContext
         });
 
         // Offline / Fallback Resilience: If AI was offline or returned empty, resolve via local profile facts

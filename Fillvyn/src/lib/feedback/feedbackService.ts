@@ -9,6 +9,8 @@ import {
   IFeedbackNotifier,
   IFeedbackService,
 } from './types';
+import { defaultFeedbackRepository } from '../storage/store';
+import { IFeedbackRepository } from '../storage/types';
 
 const VALID_CATEGORIES: FeedbackCategory[] = [
   'feature_request',
@@ -89,15 +91,25 @@ export class FeedbackSanitizer implements IFeedbackSanitizer {
 }
 
 /**
- * OCP / LSP: ConsoleFeedbackNotifier records the feedback entry.
- * Can be swapped with a DatabaseNotifier, AnalyticsNotifier, or SlackWebhookNotifier.
+ * OCP / LSP: StoreFeedbackNotifier persists the feedback entry in repository and logs to console.
  */
-export class ConsoleFeedbackNotifier implements IFeedbackNotifier {
+export class StoreFeedbackNotifier implements IFeedbackNotifier {
+  constructor(private repo: IFeedbackRepository = defaultFeedbackRepository) {}
+
   async record(payload: FeedbackPayload, feedbackId: string): Promise<boolean> {
-    console.log(
-      `[FeedbackSubmission:${feedbackId}] Rating: ${payload.rating}/5 | Category: ${payload.category} | Persona: ${payload.persona} | NPS: ${payload.npsScore ?? 'N/A'}`
-    );
-    return true;
+    try {
+      await this.repo.save({
+        ...payload,
+        id: feedbackId,
+      });
+      console.log(
+        `[FeedbackRecorded:${feedbackId}] Rating: ${payload.rating}/5 | Category: ${payload.category} | Persona: ${payload.persona} | NPS: ${payload.npsScore ?? 'N/A'}`
+      );
+      return true;
+    } catch (err) {
+      console.error(`Failed to save feedback ${feedbackId}:`, err);
+      return false;
+    }
   }
 }
 
@@ -108,7 +120,7 @@ export class FeedbackService implements IFeedbackService {
   constructor(
     private validator: IFeedbackValidator = new FeedbackValidator(),
     private sanitizer: IFeedbackSanitizer = new FeedbackSanitizer(),
-    private notifier: IFeedbackNotifier = new ConsoleFeedbackNotifier()
+    private notifier: IFeedbackNotifier = new StoreFeedbackNotifier()
   ) {}
 
   async submitFeedback(payload: Partial<FeedbackPayload>): Promise<FeedbackSubmissionResult> {

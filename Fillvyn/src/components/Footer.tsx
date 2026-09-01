@@ -40,48 +40,43 @@ export default function Footer() {
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">Navigation</h4>
             <ul className="space-y-2 text-xs text-slate-400">
               <li>
-                <a href="#interactive-demo" className="hover:text-indigo-400 transition-colors">
-                  Live Interactive Demo
+                <a href="/" className="hover:text-indigo-400 transition-colors">
+                  Home
                 </a>
               </li>
               <li>
-                <a href="#features" className="hover:text-indigo-400 transition-colors">
-                  Core Features
+                <a href="/#interactive-demo" className="hover:text-indigo-400 transition-colors">
+                  Live Demo
                 </a>
               </li>
               <li>
-                <a href="#product-showcase" className="hover:text-indigo-400 transition-colors">
-                  Extension Screenshots
+                <a href="/#features" className="hover:text-indigo-400 transition-colors">
+                  Features
                 </a>
               </li>
               <li>
-                <a href="#system-specs" className="hover:text-indigo-400 transition-colors">
-                  Hardware & Specs Guide
+                <a href="/#quickstart" className="hover:text-indigo-400 transition-colors">
+                  Setup Guide
                 </a>
               </li>
               <li>
-                <a href="#quickstart" className="hover:text-indigo-400 transition-colors">
-                  Installation & Ollama Setup
+                <a href="/#faq" className="hover:text-indigo-400 transition-colors">
+                  FAQ
                 </a>
               </li>
               <li>
                 <a href="/feedback" className="hover:text-indigo-400 transition-colors">
-                  Community Feedback
+                  Feedback
                 </a>
               </li>
               <li>
                 <a href="/contact" className="hover:text-indigo-400 transition-colors">
-                  Contact Support
+                  Contact
                 </a>
               </li>
               <li>
                 <a href="/privacy" className="hover:text-indigo-400 transition-colors">
                   Privacy Policy
-                </a>
-              </li>
-              <li>
-                <a href="#faq" className="hover:text-indigo-400 transition-colors">
-                  FAQ
                 </a>
               </li>
             </ul>

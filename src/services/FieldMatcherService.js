@@ -23,6 +23,15 @@ export class FieldMatcherService {
    */
   static getNestedValue(obj, path) {
     if (!obj || !path) return undefined;
+    if (path.startsWith('links.')) {
+      const linkKey = path.split('.')[1];
+      const links = obj.links || {};
+      if (linkKey === 'githubUrl' || linkKey === 'github') return links.githubUrl || links.github || links.gitHub || '';
+      if (linkKey === 'linkedinUrl' || linkKey === 'linkedin') return links.linkedinUrl || links.linkedin || links.linkedIn || '';
+      if (linkKey === 'portfolioUrl' || linkKey === 'portfolio') return links.portfolioUrl || links.portfolio || links.website || links.personalWebsite || '';
+      if (linkKey === 'projectDemoUrl' || linkKey === 'projectDemo') return links.projectDemoUrl || links.projectDemo || links.demoUrl || '';
+      if (linkKey === 'resumeUrl' || linkKey === 'resume') return links.resumeUrl || links.resume || links.cvUrl || '';
+    }
     if (path === 'skills' && Array.isArray(obj.skills)) {
       return obj.skills.map((s) => (typeof s === 'object' && s !== null ? s.name : s)).filter(Boolean).join(', ');
     }
@@ -695,6 +704,11 @@ export class FieldMatcherService {
     }
 
     // 5. Role selection
+    const roleMatch = this.matchRoleOrPositionOption(questionText, availableOptions, profile);
+    if (roleMatch) {
+      return roleMatch;
+    }
+
     if (normQuestion === 'role' || normQuestion.includes('role')) {
       const targetRole = profile.professional?.currentRole || 'AI Engineer';
       const normTarget = this.normalize(targetRole);
@@ -752,20 +766,141 @@ export class FieldMatcherService {
   }
 
   /**
+   * Intelligently match Role / Position choices grounded by candidate's totalExperienceYears & target role
+   */
+  static matchRoleOrPositionOption(questionText, availableOptions, profile) {
+    if (!availableOptions || availableOptions.length === 0) return null;
+
+    const normQ = this.normalize(questionText);
+    const isRoleQ = (
+      normQ.includes('which role') ||
+      normQ.includes('role are you applying') ||
+      normQ.includes('applying for') ||
+      normQ.includes('position applying') ||
+      normQ.includes('job role') ||
+      normQ.includes('target role') ||
+      normQ.includes('select role') ||
+      normQ === 'role' ||
+      normQ === 'role *' ||
+      normQ === 'position' ||
+      normQ === 'position *'
+    );
+
+    if (!isRoleQ) return null;
+
+    const prof = profile?.professional || {};
+    const rawExpYears = parseFloat(prof.totalExperienceYears !== undefined ? String(prof.totalExperienceYears).trim() : '0') || 0;
+    const targetRole = this.normalize(prof.currentRole || 'ai backend software engineer');
+    const skillsList = (profile?.skills || []).map((s) => {
+      const name = typeof s === 'object' && s !== null ? s.name : s;
+      return this.normalize(name);
+    }).filter(Boolean);
+
+    let bestOpt = null;
+    let highestScore = -1;
+
+    for (const opt of availableOptions) {
+      const normOpt = this.normalize(opt);
+      let score = 0;
+
+      // 1. Experience Range Compatibility
+      const isSeniorOpt = normOpt.includes('senior') || normOpt.includes('3+') || normOpt.includes('3 5') || normOpt.includes('5+') || normOpt.includes('lead') || normOpt.includes('staff');
+      const isJuniorOpt = normOpt.includes('junior') || normOpt.includes('0 2') || normOpt.includes('0-2') || normOpt.includes('0 1') || normOpt.includes('1 3') || normOpt.includes('fresher') || normOpt.includes('intern') || normOpt.includes('entry level');
+
+      if (rawExpYears <= 2) {
+        if (isSeniorOpt && !isJuniorOpt) {
+          // Ineligible for senior role tier when candidate has <=2 years experience
+          continue;
+        }
+        if (isJuniorOpt) score += 50;
+      } else {
+        if (isJuniorOpt && !isSeniorOpt) {
+          score += 10;
+        }
+        if (isSeniorOpt) score += 50;
+      }
+
+      // 2. Role & Tech Alignment
+      if (normOpt.includes(targetRole) || targetRole.includes(normOpt)) {
+        score += 30;
+      }
+      if ((normOpt.includes('ai') || normOpt.includes('ml')) && (targetRole.includes('ai') || skillsList.some((s) => s.includes('ai') || s.includes('llm') || s.includes('python')))) {
+        score += 20;
+      }
+      if (normOpt.includes('backend') && (targetRole.includes('backend') || skillsList.some((s) => s.includes('java') || s.includes('node') || s.includes('spring') || s.includes('backend') || s.includes('sql')))) {
+        score += 20;
+      }
+      if (normOpt.includes('frontend') && (targetRole.includes('frontend') || skillsList.some((s) => s.includes('react') || s.includes('vue') || s.includes('angular') || s.includes('frontend')))) {
+        score += 20;
+      }
+      if (normOpt.includes('full stack') || normOpt.includes('fullstack')) {
+        score += 15;
+      }
+
+      if (score > highestScore) {
+        highestScore = score;
+        bestOpt = opt;
+      }
+    }
+
+    if (bestOpt && highestScore > 0) {
+      return { option: bestOpt, confidence: 0.95 };
+    }
+
+    return null;
+  }
+
+  /**
    * Determine which Checkboxes to select
    */
   static matchCheckboxOptions(questionText, availableOptions, profile) {
     if (!availableOptions || availableOptions.length === 0) return [];
 
+    const normQ = this.normalize(questionText);
+
+    // 1. Role or Position question formatted as checkboxes in Google Forms
+    const roleMatch = this.matchRoleOrPositionOption(questionText, availableOptions, profile);
+    if (roleMatch && roleMatch.option) {
+      return [roleMatch.option];
+    }
+
+    // 2. Affirmative / Negative choice checkboxes
+    const isAffirmative = (
+      normQ.includes('can you commit') ||
+      normQ.includes('can you join immediately') ||
+      normQ.includes('hours daily') ||
+      normQ.includes('immediate')
+    );
+    const isNegative = (
+      normQ.includes('college attendance requirement') ||
+      normQ.includes('vivas') ||
+      normQ.includes('exams') ||
+      normQ.includes('tests') ||
+      normQ.includes('end-sems')
+    );
+    if (isAffirmative || isNegative) {
+      for (const opt of availableOptions) {
+        const normOpt = this.normalize(opt);
+        if (isAffirmative && normOpt === 'yes') return [opt];
+        if (isNegative && normOpt === 'no') return [opt];
+      }
+    }
+
+    // 3. Technical Skills Multi-Choice Checkboxes
     const selectedOptions = [];
-    const skillsList = (profile.skills || []).map((s) => {
+    const skillsList = (profile?.skills || []).map((s) => {
       const name = typeof s === 'object' && s !== null ? s.name : s;
       return this.normalize(name);
     }).filter(Boolean);
 
     for (const opt of availableOptions) {
       const normOpt = this.normalize(opt);
-      const isMatched = skillsList.some((skill) => skill === normOpt || normOpt.includes(skill) || skill.includes(normOpt));
+      const isMatched = skillsList.some((skill) => {
+        if (!skill || skill.length < 2) return false;
+        if (normOpt === skill) return true;
+        const optWords = normOpt.split(/[\s,()\/_-]+/);
+        return optWords.includes(skill) || (normOpt.includes(skill) && skill.length >= 4);
+      });
       if (isMatched && normOpt !== 'none') {
         selectedOptions.push(opt);
       }

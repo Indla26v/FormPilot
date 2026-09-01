@@ -645,6 +645,7 @@ ALIGNMENT INSTRUCTION: Tailor and align your response to directly emphasize the 
     retrievedChunks = [],
     jobDescription = '',
     customInstructions = '',
+    formContext = {},
     config: customConfig = null,
     signal = null
   }) {
@@ -683,6 +684,29 @@ ALIGNMENT INSTRUCTION: Tailor and align your response to directly emphasize the 
     const ragContextText = deduplicatedChunks
       .map((c, i) => `[Source ${i + 1}: ${c.docTitle} - ${c.sectionTitle || 'General'}]\n${c.text}`)
       .join('\n\n');
+
+    // Extract explicit Candidate Project Names from RAG chunks, links, and custom fields
+    const projectTitles = new Set();
+    deduplicatedChunks.forEach((c) => {
+      if (c.docTitle && !c.docTitle.toLowerCase().includes('.pdf') && !c.docTitle.toLowerCase().includes('resume')) {
+        projectTitles.add(c.docTitle.replace(/\s*\(GitHub README\)/i, '').trim());
+      }
+      if (c.sectionTitle && !['general', 'overview', 'skills', 'education', 'experience'].includes(c.sectionTitle.toLowerCase())) {
+        projectTitles.add(c.sectionTitle.replace(/^[#\*\-\s]+/, '').trim());
+      }
+    });
+    if (profile.links?.projectDemoUrl) {
+      const match = profile.links.projectDemoUrl.match(/\/([^\/]+)$/);
+      if (match) projectTitles.add(match[1].replace(/[-_]/g, ' '));
+    }
+    if (profile.customFields && Array.isArray(profile.customFields)) {
+      profile.customFields.forEach((cf) => {
+        if (cf.key && (cf.key.toLowerCase().includes('project') || cf.key.toLowerCase().includes('built'))) {
+          projectTitles.add(`${cf.key}: ${cf.value}`);
+        }
+      });
+    }
+    const projectsSummary = Array.from(projectTitles).filter(Boolean);
 
     const pers = profile.personal || {};
     const edu = profile.education || {};
@@ -725,12 +749,21 @@ STRICT DECISION RULES:
    - If 'options' list is provided:
    - For single-choice ('radio' / 'dropdown'): Select the SINGLE EXACT matching string from the 'options' list that represents the candidate's profile/skills/status.
    - For multi-choice ('checkbox'): Select an ARRAY of EXACT strings from the 'options' list matching the candidate's skills and experience.
+   - ROLE & SENIORITY QUESTIONS (e.g. 'Which role are you applying for?'): Candidate's Total Work Experience is "${expYears}" years.
+     * If candidate experience is 0-2 years: Choose ONLY the Junior / 0-2 yrs role tier (NEVER select Senior 3+ yrs).
+     * If candidate experience is 3+ years: Choose Senior / 3+ yrs tier.
+     * Candidate applies to ONLY ONE role tier matching their experience, even if rendered as checkboxes.
    - NEVER invent options outside the provided 'options' list.
 
-3. OPEN-ENDED / TECHNICAL / ESSAY QUESTIONS:
-   - For questions requiring descriptions, project architecture, debugging stories, or explanations:
-   - Synthesize a grounded, humanized first-person ("I", "my") answer strictly based on the candidate's actual projects, resume chunks, and listed skills.
-   - Do not hallucinate unlisted third-party tools.
+3. OPEN-ENDED & ESSAY QUESTIONS:
+   - PROJECT SPECIFIC QUESTIONS (ONLY when asked to explain/describe a project, architecture, technical achievement, or something built, e.g. 'explain a project', 'tell us about a project you built'):
+     * You MUST explicitly NAME the Project Title / Repository Name from the Candidate Projects list in the opening sentence (e.g. 'In my project **[Exact Project Title / Repo Name]**, I developed...').
+     * NEVER write vague openings like 'I worked on a project where I...' without explicitly citing the actual project title.
+     * Ground every technical detail strictly in the candidate's actual projects, resume chunks, and listed skills.
+   - NON-PROJECT OPEN-ENDED QUESTIONS (e.g. 'Why do you want to join us?', 'Tell us about yourself', 'What are your strengths?', 'Describe a challenge at work'):
+     * Synthesize a concise, professional first-person ('I', 'my') response grounded in the candidate's background, skills, and values.
+     * DO NOT force project titles into non-project questions where they are not asked for.
+   - REVISION INSTRUCTIONS: If the user provides a custom instruction or comment, prioritize and follow the user's specific instruction precisely.
 
 OUTPUT FORMAT:
 You MUST respond with valid JSON strictly matching this schema:
@@ -757,8 +790,14 @@ You MUST respond with valid JSON strictly matching this schema:
 - Notice Period (Text): "${noticeText}"
 - Notice Period (in Days): "${noticeDays}"
 - Can Join Immediately: "${prof.canJoinImmediately || 'Yes'}"
-- LinkedIn URL: "${links.linkedin || ''}"
-- GitHub URL: "${links.github || ''}"
+- LinkedIn URL: "${links.linkedinUrl || links.linkedin || ''}"
+- GitHub URL: "${links.githubUrl || links.github || ''}"
+- Portfolio / Personal Website: "${links.portfolioUrl || links.portfolio || links.website || ''}"
+- Project Demo URL: "${links.projectDemoUrl || links.projectDemo || ''}"
+- Resume Link: "${links.resumeUrl || links.resume || ''}"
+
+CANDIDATE PROJECT REPOSITORIES & TITLES (GROUND TRUTH):
+${projectsSummary.length > 0 ? projectsSummary.map((p, i) => `${i + 1}. "${p}"`).join('\n') : 'Projects documented in resume RAG context below.'}
 
 CANDIDATE PROFILE DATA (JSON):
 \`\`\`json
@@ -769,6 +808,10 @@ RETRIEVED RESUME & PROJECT RAG CONTEXT:
 ${ragContextText || 'No external document chunks. Use candidate profile data.'}
 `;
 
+    if (formContext && (formContext.formTitle || formContext.formDescription)) {
+      userPrompt += `\nFORM CONTEXT (APPLICATION CONTEXT):\n- Form Title: "${formContext.formTitle || 'Application Form'}"\n${formContext.formDescription ? `- Form Description: "${formContext.formDescription.slice(0, 500)}"\n` : ''}${formContext.allQuestions && formContext.allQuestions.length > 0 ? `- Other Questions in Form: ${JSON.stringify(formContext.allQuestions.slice(0, 10))}\n` : ''}`;
+    }
+
     if (jobDescription && jobDescription.trim()) {
       userPrompt += `\nJOB DESCRIPTION ALIGNMENT CONTEXT:\n"""\n${jobDescription.trim().slice(0, 3000)}\n"""\n`;
     }
@@ -778,7 +821,6 @@ Question Text: "${question}"
 Field Type: "${fieldType}"
 Available Options: ${options && options.length > 0 ? JSON.stringify(options) : 'None (Text / Number input)'}
 ${customInstructions ? `Special User Instruction: "${customInstructions}"\n` : ''}
-
 Determine the decisionType, extract or synthesize the value, and output ONLY valid JSON:`;
 
     try {

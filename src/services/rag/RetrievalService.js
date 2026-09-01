@@ -100,8 +100,18 @@ export class RetrievalService {
     const queryTokens = this.tokenize(questionText);
     if (queryTokens.length === 0) return chunks.slice(0, topK);
 
+    const isProjectInquiry = queryTokens.some((t) => ['project', 'proud', 'built', 'worked', 'repo', 'system', 'architecture', 'github', 'app', 'application', 'developed', 'explain', 'describe'].includes(t));
+
     const scoredChunks = chunks.map((chunk) => {
-      const score = this.scoreChunk(queryTokens, chunk);
+      let score = this.scoreChunk(queryTokens, chunk);
+      if (isProjectInquiry) {
+        if (chunk.source === 'github' || (chunk.docTitle && chunk.docTitle.toLowerCase().includes('github'))) {
+          score += 2.0;
+        }
+        if (chunk.sectionTitle && (chunk.sectionTitle.toLowerCase().includes('project') || chunk.sectionTitle.toLowerCase().includes('architecture') || chunk.sectionTitle.toLowerCase().includes('feature'))) {
+          score += 1.5;
+        }
+      }
       return { chunk, score };
     });
 

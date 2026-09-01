@@ -304,6 +304,18 @@
 
     static getNestedValue(obj, path) {
       if (!obj || !path) return undefined;
+      if (path.startsWith('links.')) {
+        const linkKey = path.split('.')[1];
+        const links = obj.links || {};
+        if (linkKey === 'githubUrl' || linkKey === 'github') return links.githubUrl || links.github || links.gitHub || '';
+        if (linkKey === 'linkedinUrl' || linkKey === 'linkedin') return links.linkedinUrl || links.linkedin || links.linkedIn || '';
+        if (linkKey === 'portfolioUrl' || linkKey === 'portfolio') return links.portfolioUrl || links.portfolio || links.website || links.personalWebsite || '';
+        if (linkKey === 'projectDemoUrl' || linkKey === 'projectDemo') return links.projectDemoUrl || links.projectDemo || links.demoUrl || '';
+        if (linkKey === 'resumeUrl' || linkKey === 'resume') return links.resumeUrl || links.resume || links.cvUrl || '';
+      }
+      if (path === 'skills' && Array.isArray(obj.skills)) {
+        return obj.skills.map((s) => (typeof s === 'object' && s !== null ? s.name : s)).filter(Boolean).join(', ');
+      }
       if (path === 'professional.companyAndRole') {
         const role = obj.professional?.currentRole || '';
         const org = obj.professional?.currentOrganization || '';
@@ -903,6 +915,12 @@
         }
       }
 
+      // Role selection
+      const roleMatch = this.matchRoleOrPositionOption(questionText, availableOptions, profile);
+      if (roleMatch) {
+        return roleMatch;
+      }
+
       if (normQuestion === 'role' || normQuestion.includes('role')) {
         const targetRole = profile.professional?.currentRole || 'AI Engineer';
         const normTarget = this.normalize(targetRole);
@@ -952,16 +970,142 @@
       return null;
     }
 
-    static matchCheckboxOptions(questionText, availableOptions, profile) {
-      if (!availableOptions || availableOptions.length === 0) return [];
-      const selected = [];
-      const skillsList = (profile.skills || []).map((s) => {
+    /**
+     * Intelligently match Role / Position choices grounded by candidate's totalExperienceYears & target role
+     */
+    static matchRoleOrPositionOption(questionText, availableOptions, profile) {
+      if (!availableOptions || availableOptions.length === 0) return null;
+
+      const normQ = this.normalize(questionText);
+      const isRoleQ = (
+        normQ.includes('which role') ||
+        normQ.includes('role are you applying') ||
+        normQ.includes('applying for') ||
+        normQ.includes('position applying') ||
+        normQ.includes('job role') ||
+        normQ.includes('target role') ||
+        normQ.includes('select role') ||
+        normQ === 'role' ||
+        normQ === 'role *' ||
+        normQ === 'position' ||
+        normQ === 'position *'
+      );
+
+      if (!isRoleQ) return null;
+
+      const prof = profile?.professional || {};
+      const rawExpYears = parseFloat(prof.totalExperienceYears !== undefined ? String(prof.totalExperienceYears).trim() : '0') || 0;
+      const targetRole = this.normalize(prof.currentRole || 'ai backend software engineer');
+      const skillsList = (profile?.skills || []).map((s) => {
         const name = typeof s === 'object' && s !== null ? s.name : s;
         return this.normalize(name);
       }).filter(Boolean);
+
+      let bestOpt = null;
+      let highestScore = -1;
+
       for (const opt of availableOptions) {
         const normOpt = this.normalize(opt);
-        const isMatched = skillsList.some((skill) => skill === normOpt || normOpt.includes(skill) || skill.includes(normOpt));
+        let score = 0;
+
+        // 1. Experience Range Compatibility
+        const isSeniorOpt = normOpt.includes('senior') || normOpt.includes('3+') || normOpt.includes('3 5') || normOpt.includes('5+') || normOpt.includes('lead') || normOpt.includes('staff');
+        const isJuniorOpt = normOpt.includes('junior') || normOpt.includes('0 2') || normOpt.includes('0-2') || normOpt.includes('0 1') || normOpt.includes('1 3') || normOpt.includes('fresher') || normOpt.includes('intern') || normOpt.includes('entry level');
+
+        if (rawExpYears <= 2) {
+          if (isSeniorOpt && !isJuniorOpt) {
+            // Ineligible for senior role tier when candidate has <=2 years experience
+            continue;
+          }
+          if (isJuniorOpt) score += 50;
+        } else {
+          if (isJuniorOpt && !isSeniorOpt) {
+            score += 10;
+          }
+          if (isSeniorOpt) score += 50;
+        }
+
+        // 2. Role & Tech Alignment
+        if (normOpt.includes(targetRole) || targetRole.includes(normOpt)) {
+          score += 30;
+        }
+        if ((normOpt.includes('ai') || normOpt.includes('ml')) && (targetRole.includes('ai') || skillsList.some((s) => s.includes('ai') || s.includes('llm') || s.includes('python')))) {
+          score += 20;
+        }
+        if (normOpt.includes('backend') && (targetRole.includes('backend') || skillsList.some((s) => s.includes('java') || s.includes('node') || s.includes('spring') || s.includes('backend') || s.includes('sql')))) {
+          score += 20;
+        }
+        if (normOpt.includes('frontend') && (targetRole.includes('frontend') || skillsList.some((s) => s.includes('react') || s.includes('vue') || s.includes('angular') || s.includes('frontend')))) {
+          score += 20;
+        }
+        if (normOpt.includes('full stack') || normOpt.includes('fullstack')) {
+          score += 15;
+        }
+
+        if (score > highestScore) {
+          highestScore = score;
+          bestOpt = opt;
+        }
+      }
+
+      if (bestOpt && highestScore > 0) {
+        return { option: bestOpt, confidence: 0.95 };
+      }
+
+      return null;
+    }
+
+    /**
+     * Determine which Checkboxes to select
+     */
+    static matchCheckboxOptions(questionText, availableOptions, profile) {
+      if (!availableOptions || availableOptions.length === 0) return [];
+
+      const normQ = this.normalize(questionText);
+
+      // 1. Role or Position question formatted as checkboxes in Google Forms
+      const roleMatch = this.matchRoleOrPositionOption(questionText, availableOptions, profile);
+      if (roleMatch && roleMatch.option) {
+        return [roleMatch.option];
+      }
+
+      // 2. Affirmative / Negative choice checkboxes
+      const isAffirmative = (
+        normQ.includes('can you commit') ||
+        normQ.includes('can you join immediately') ||
+        normQ.includes('hours daily') ||
+        normQ.includes('immediate')
+      );
+      const isNegative = (
+        normQ.includes('college attendance requirement') ||
+        normQ.includes('vivas') ||
+        normQ.includes('exams') ||
+        normQ.includes('tests') ||
+        normQ.includes('end-sems')
+      );
+      if (isAffirmative || isNegative) {
+        for (const opt of availableOptions) {
+          const normOpt = this.normalize(opt);
+          if (isAffirmative && normOpt === 'yes') return [opt];
+          if (isNegative && normOpt === 'no') return [opt];
+        }
+      }
+
+      // 3. Technical Skills Multi-Choice Checkboxes
+      const selected = [];
+      const skillsList = (profile?.skills || []).map((s) => {
+        const name = typeof s === 'object' && s !== null ? s.name : s;
+        return this.normalize(name);
+      }).filter(Boolean);
+
+      for (const opt of availableOptions) {
+        const normOpt = this.normalize(opt);
+        const isMatched = skillsList.some((skill) => {
+          if (!skill || skill.length < 2) return false;
+          if (normOpt === skill) return true;
+          const optWords = normOpt.split(/[\s,()\/_-]+/);
+          return optWords.includes(skill) || (normOpt.includes(skill) && skill.length >= 4);
+        });
         if (isMatched && normOpt !== 'none') selected.push(opt);
       }
       return selected;
@@ -1034,6 +1178,53 @@
       }
 
       return cleanTitle || title || '';
+    }
+
+    /**
+     * Extract high-level form context: Form Title, Subtitle / Description, and overview of questions
+     */
+    static extractFormContext(rootDoc = null) {
+      const doc = rootDoc || (typeof document !== 'undefined' ? document : null);
+      if (!doc) return { formTitle: '', formDescription: '', allQuestions: [] };
+
+      let formTitle = '';
+      let formDescription = '';
+
+      // 1. Google Forms Form Title
+      const gfTitleEl = doc.querySelector('.F9N7Re, .freebirdFormviewerViewHeaderTitle, [role="heading"][aria-level="1"], .ahS2Le, div.M7eMe');
+      if (gfTitleEl) {
+        formTitle = (gfTitleEl.innerText || gfTitleEl.textContent || '').trim();
+      }
+
+      // 2. Microsoft Forms Form Title
+      if (!formTitle) {
+        const msTitleEl = doc.querySelector('.office-form-title, span[data-automation-id="formTitle"], .form-title');
+        if (msTitleEl) {
+          formTitle = (msTitleEl.innerText || msTitleEl.textContent || '').trim();
+        }
+      }
+
+      // 3. Document Title fallback
+      if (!formTitle && doc.title) {
+        formTitle = doc.title.replace(/\s*-\s*Google Forms\s*$/i, '').replace(/\s*-\s*Microsoft Forms\s*$/i, '').trim();
+      }
+
+      // Form Subtitle / Description
+      const descEl = doc.querySelector('.freebirdFormviewerViewHeaderDescription, .gHjhdc, .jibhHc, .vRMGwf, .office-form-subtitle, span[data-automation-id="formSubtitle"]');
+      if (descEl) {
+        formDescription = (descEl.innerText || descEl.textContent || '').trim();
+      }
+
+      const questionEls = this.findQuestionContainers(doc);
+      const allQuestions = questionEls
+        .map((c) => this.extractQuestionText(c).split('\n')[0].trim())
+        .filter(Boolean);
+
+      return {
+        formTitle,
+        formDescription,
+        allQuestions
+      };
     }
 
     static isOpenEndedQuestion(questionText, targetEl) {
@@ -1415,7 +1606,8 @@
       options = [],
       profile,
       customInstructions = '',
-      currentFieldValue = ''
+      currentFieldValue = '',
+      formContext = null
     }) {
       try {
         const pId = profile?.id || 'profile_default';
@@ -1428,6 +1620,7 @@
           ollamaModel: 'llama3.2'
         };
 
+        const activeFormContext = formContext || this.extractFormContext();
         const chatKey = (questionText || '').trim().toLowerCase();
         let history = fieldChatHistory.get(chatKey) || [];
         const isFollowUp = Boolean(customInstructions && customInstructions.trim() && (history.length > 0 || currentFieldValue));
@@ -1448,19 +1641,49 @@
 
         let contextStr = '';
         if (chunks.length > 0) {
-          const queryWords = questionText.toLowerCase().replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter((w) => w.length > 2);
+          const queryText = `${questionText} ${customInstructions || ''}`.toLowerCase();
+          const queryWords = queryText.replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter((w) => w.length > 2);
+          const isProjectInquiry = queryWords.some((w) => ['project', 'proud', 'built', 'worked', 'repo', 'system', 'architecture', 'github', 'app', 'application', 'developed', 'name', 'title'].includes(w));
+
           const scored = chunks.map((c) => {
             const text = (c.text || '').toLowerCase();
             let score = 0;
             queryWords.forEach((qw) => {
               if (text.includes(qw)) score += 1;
             });
+            if (isProjectInquiry) {
+              if (c.source === 'github' || (c.docTitle && c.docTitle.toLowerCase().includes('github'))) score += 2.5;
+              if (c.sectionTitle && (c.sectionTitle.toLowerCase().includes('project') || c.sectionTitle.toLowerCase().includes('architecture'))) score += 2.0;
+            }
             return { chunk: c, score };
           }).sort((a, b) => b.score - a.score);
 
-          const topChunks = scored.slice(0, 3).map((s) => s.chunk).filter(Boolean);
-          contextStr = topChunks.map((c, i) => `[Source ${i + 1}: ${c.docTitle || 'Doc'}]\n${c.text}`).join('\n\n');
+          const topChunks = scored.slice(0, 4).map((s) => s.chunk).filter(Boolean);
+          contextStr = topChunks.map((c, i) => `[Source ${i + 1}: ${c.docTitle || 'Doc'} - ${c.sectionTitle || 'Overview'}]\n${c.text}`).join('\n\n');
         }
+
+        // Extract explicit project names for ground truth prompt
+        const projectTitles = new Set();
+        chunks.forEach((c) => {
+          if (c.docTitle && !c.docTitle.toLowerCase().includes('.pdf') && !c.docTitle.toLowerCase().includes('resume')) {
+            projectTitles.add(c.docTitle.replace(/\s*\(GitHub README\)/i, '').trim());
+          }
+          if (c.sectionTitle && !['general', 'overview', 'skills', 'education', 'experience'].includes(c.sectionTitle.toLowerCase())) {
+            projectTitles.add(c.sectionTitle.replace(/^[#\*\-\s]+/, '').trim());
+          }
+        });
+        if (profile.links?.projectDemoUrl) {
+          const match = profile.links.projectDemoUrl.match(/\/([^\/]+)$/);
+          if (match) projectTitles.add(match[1].replace(/[-_]/g, ' '));
+        }
+        if (profile.customFields && Array.isArray(profile.customFields)) {
+          profile.customFields.forEach((cf) => {
+            if (cf.key && (cf.key.toLowerCase().includes('project') || cf.key.toLowerCase().includes('built'))) {
+              projectTitles.add(`${cf.key}: ${cf.value}`);
+            }
+          });
+        }
+        const projectsSummary = Array.from(projectTitles).filter(Boolean);
 
         const candidateName = profile.personal?.fullName || 'the candidate';
         const skillsFormatted = (profile.skills || []).map((s) => {
@@ -1525,9 +1748,20 @@ STRICT DECISION RULES:
    - If 'options' list is provided:
    - For single-choice ('radio' / 'dropdown'): Select the SINGLE EXACT matching string from the 'options' list that represents the candidate.
    - For multi-choice ('checkbox'): Select an ARRAY of EXACT strings from the 'options' list matching the candidate's skills.
+   - ROLE & SENIORITY QUESTIONS (e.g. 'Which role are you applying for?'): Candidate's Total Work Experience is "${expYears}" years.
+     * If experience is 0-2 years: Choose ONLY the Junior / 0-2 yrs role tier (NEVER select Senior 3+ yrs).
+     * If experience is 3+ years: Choose Senior / 3+ yrs tier.
+     * Candidate applies to ONLY ONE role tier matching their experience, even if rendered as checkboxes.
 
-3. OPEN-ENDED / TECHNICAL / ESSAY QUESTIONS:
-   - For technical questions or essays, synthesize a concise, first-person ("I", "my") grounded response based on the candidate's resume/projects and listed skills.
+3. OPEN-ENDED & ESSAY QUESTIONS:
+   - PROJECT SPECIFIC QUESTIONS (ONLY when asked to explain/describe a project, architecture, technical achievement, or something built, e.g. 'explain a project', 'tell us about a project you built'):
+     * You MUST explicitly NAME the Project Title / Repository Name from the Candidate Projects list in the opening sentence (e.g. 'In my project **[Exact Project Title / Repo Name]**, I developed...').
+     * NEVER write vague openings like 'I worked on a project where I...' without explicitly citing the actual project title.
+     * Ground every technical detail strictly in the candidate's actual projects, resume chunks, and listed skills.
+   - NON-PROJECT OPEN-ENDED QUESTIONS (e.g. 'Why do you want to join us?', 'Tell us about yourself', 'What are your strengths?', 'Describe a challenge at work'):
+     * Synthesize a concise, professional first-person ('I', 'my') response grounded in the candidate's background, skills, and values.
+     * DO NOT force project titles into non-project questions where they are not asked for.
+   - REVISION INSTRUCTIONS: If the user provides a custom instruction or comment, prioritize and follow the user's specific instruction precisely.
 
 OUTPUT FORMAT:
 Respond with valid JSON:
@@ -1554,36 +1788,55 @@ Respond with valid JSON:
 - Notice Period (Text): "${noticeText}"
 - Notice Period (in Days): "${noticeDays}"
 - Can Join Immediately: "${prof.canJoinImmediately || 'Yes'}"
-- LinkedIn URL: "${links.linkedin || ''}"
-- GitHub URL: "${links.github || ''}"
+- LinkedIn URL: "${links.linkedinUrl || links.linkedin || ''}"
+- GitHub URL: "${links.githubUrl || links.github || ''}"
+- Portfolio / Personal Website: "${links.portfolioUrl || links.portfolio || links.website || ''}"
+- Project Demo URL: "${links.projectDemoUrl || links.projectDemo || ''}"
+- Resume Link: "${links.resumeUrl || links.resume || ''}"
+
+CANDIDATE PROJECT REPOSITORIES & TITLES (GROUND TRUTH):
+${projectsSummary.length > 0 ? projectsSummary.map((p, i) => `${i + 1}. "${p}"`).join('\n') : 'Projects documented in resume RAG context below.'}
 
 CANDIDATE PROFILE DATA:
 \`\`\`json
 ${JSON.stringify(profileContext, null, 2)}
 \`\`\`
 
-RAG CONTEXT (Resume & Projects):
+RETRIEVED RESUME & PROJECT RAG CONTEXT:
 ${contextStr || 'Use candidate profile.'}
 `;
 
+        if (activeFormContext && (activeFormContext.formTitle || activeFormContext.formDescription)) {
+          promptContent += `\nFORM CONTEXT (APPLICATION CONTEXT):\n- Form Title: "${activeFormContext.formTitle || 'Application Form'}"\n${activeFormContext.formDescription ? `- Form Description: "${activeFormContext.formDescription.slice(0, 500)}"\n` : ''}${activeFormContext.allQuestions && activeFormContext.allQuestions.length > 0 ? `- Other Questions in Form: ${JSON.stringify(activeFormContext.allQuestions.slice(0, 10))}\n` : ''}`;
+        }
+
         if (sessionJobDescription && sessionJobDescription.trim()) {
           promptContent += `\nJOB DESCRIPTION ALIGNMENT:\n"""\n${sessionJobDescription.trim().slice(0, 3000)}\n"""\n`;
+        }
+
+        if (isFollowUp && currentFieldValue) {
+          promptContent += `\nPREVIOUS GENERATED ANSWER TO REVISE:\n"""\n${currentFieldValue}\n"""\n`;
         }
 
         promptContent += `\nFORM QUESTION TO EVALUATE:
 Question Text: "${questionText}"
 Field Type: "${fieldType}"
 Available Options: ${options && options.length > 0 ? JSON.stringify(options) : 'None (Text / Number input)'}
-${customInstructions ? `User Instruction: "${customInstructions}"\n` : ''}
+${customInstructions ? `CRITICAL USER REVISION INSTRUCTION: "${customInstructions}"\n` : ''}
 
 Output ONLY valid JSON decision:`;
 
         const messages = [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: promptContent }
+          { role: 'system', content: systemPrompt }
         ];
 
+        if (isFollowUp && currentFieldValue) {
+          messages.push({ role: 'assistant', content: currentFieldValue });
+        }
+        messages.push({ role: 'user', content: promptContent });
+
         let rawOutput = '';
+        let lastLlmError = '';
 
         // Safe helper to communicate with background service worker without throwing context invalidation errors
         const callProxy = (payload) => {
@@ -1766,7 +2019,8 @@ Output ONLY valid JSON decision:`;
         customInstructions,
         currentFieldValue
       });
-      return typeof decision.value === 'string' ? decision.value : (Array.isArray(decision.value) ? decision.value.join(', ') : '');
+      const textVal = typeof decision.value === 'string' ? decision.value : (Array.isArray(decision.value) ? decision.value.join(', ') : '');
+      return { value: textVal, error: decision.error || '' };
     }
 
     static attachAiToolbar(containerEl, targetEl, questionText, profile) {
@@ -1812,15 +2066,15 @@ Output ONLY valid JSON decision:`;
           `;
 
           try {
-            const newAnswer = await LocalFillerService.synthesizeAiAnswer(questionText, profile, userComment, currentVal);
-            if (newAnswer) {
-              await LocalFillerService.typewriteInputValue(targetEl, newAnswer);
+            const { value: newAnswer, error: regenError } = await LocalFillerService.synthesizeAiAnswer(questionText, profile, userComment, currentVal);
+            if (newAnswer && newAnswer.trim()) {
+              await LocalFillerService.typewriteInputValue(targetEl, newAnswer.trim());
               commentInput.value = '';
               commentInput.placeholder = "Follow-up revision instruction (e.g. 'shorten to 60 words')...";
               LocalFillerService.highlightContainer(parentContainer, { confidence: 0.98, isRag: true });
               showToast('Answer refined with conversational memory!');
             } else {
-              showToast('Could not re-generate answer. Check LLM settings.', 'error');
+              showToast(regenError || 'Could not re-generate answer. Check LLM settings.', 'error');
             }
           } catch (e) {
             showToast(e.message || 'Could not re-generate answer.', 'error');
@@ -1910,7 +2164,7 @@ Output ONLY valid JSON decision:`;
 
           try {
             const currentVal = (targetEl.value || '').trim();
-            const generated = await LocalFillerService.synthesizeAiAnswer(questionText, profile, '', currentVal);
+            const { value: generated, error: genError } = await LocalFillerService.synthesizeAiAnswer(questionText, profile, '', currentVal);
 
             if (generated && generated.trim()) {
               await LocalFillerService.typewriteInputValue(targetEl, generated.trim());
@@ -1934,7 +2188,7 @@ Output ONLY valid JSON decision:`;
                 </svg>
                 <span class="gfaf-ai-column-btn-text">AI Answer</span>
               `;
-              showToast('Could not generate AI answer. Check LLM settings.', 'error');
+              showToast(genError || 'Could not generate AI answer. Check LLM settings.', 'error');
             }
           } catch (err) {
             console.warn('[GFAF] Column AI generation error:', err);
@@ -2054,9 +2308,12 @@ Output ONLY valid JSON decision:`;
       if (q.includes('full name') || q.includes('your name') || q === 'name' || q === 'name *') return 'full_name';
       if (q.includes('email') || q.includes('mail id')) return 'email';
       if (q.includes('phone') || q.includes('mobile') || q.includes('contact no')) return 'phone';
-      if (q.includes('linkedin')) return 'linkedin_url';
-      if (q.includes('github')) return 'github_url';
-      if (q.includes('portfolio') || q.includes('website')) return 'portfolio_url';
+      if (q.includes('linkedin') || q.includes('linked in')) return 'linkedin_url';
+      if (q.includes('github') || q.includes('git repo') || q.includes('github profile') || q.includes('github url')) return 'github_url';
+      if (q.includes('portfolio') || q.includes('personal website') || q.includes('portfolio website') || q.includes('personal site') || (q.includes('website') && !q.includes('company website'))) return 'portfolio_url';
+      if (q.includes('project demo') || q.includes('live demo') || q.includes('live project') || q.includes('one thing you built')) return 'project_demo_url';
+      if (q.includes('resume link') || q.includes('drive link') || q.includes('cv link') || q.includes('resume url')) return 'resume_url';
+      if (q.includes('which role') || q.includes('role are you applying') || q.includes('applying for') || q.includes('position applying') || q.includes('job role') || q.includes('target role') || q.includes('select role') || q === 'role' || q === 'role *' || q === 'position' || q === 'position *') return 'role_selection';
 
       return 'unknown';
     }
@@ -2079,6 +2336,44 @@ Output ONLY valid JSON decision:`;
       const links = profile.links || {};
 
       let expectedValue = null;
+
+      // Handle Role Selection Grounding for Multi-Choice / Checkbox / Radio
+      if (category === 'role_selection' && aiDecision?.value) {
+        const rawExpYears = parseFloat(prof.totalExperienceYears !== undefined ? String(prof.totalExperienceYears).trim() : '0') || 0;
+        const isCandidateJunior = rawExpYears <= 2;
+
+        if (Array.isArray(aiDecision.value)) {
+          const filtered = aiDecision.value.filter((opt) => {
+            const normOpt = this.normalize(String(opt));
+            const isSeniorOpt = normOpt.includes('senior') || normOpt.includes('3+') || normOpt.includes('3 5') || normOpt.includes('5+');
+            const isJuniorOpt = normOpt.includes('junior') || normOpt.includes('0 2') || normOpt.includes('0-2') || normOpt.includes('fresher') || normOpt.includes('intern');
+            
+            if (isCandidateJunior && isSeniorOpt && !isJuniorOpt) return false;
+            if (!isCandidateJunior && isJuniorOpt && !isSeniorOpt) return false;
+            return true;
+          });
+
+          const finalVal = filtered.length > 0 ? (fieldType === 'checkbox' ? [filtered[0]] : filtered[0]) : aiDecision.value;
+          return {
+            ...aiDecision,
+            decisionType: 'choice_selection',
+            value: finalVal,
+            confidence: 0.98,
+            isGrounded: true
+          };
+        } else if (typeof aiDecision.value === 'string') {
+          const normVal = this.normalize(aiDecision.value);
+          const isSeniorOpt = normVal.includes('senior') || normVal.includes('3+') || normVal.includes('3 5') || normVal.includes('5+');
+          if (isCandidateJunior && isSeniorOpt) {
+            return {
+              ...aiDecision,
+              decisionType: 'choice_selection',
+              confidence: 0.95,
+              isGrounded: true
+            };
+          }
+        }
+      }
 
       switch (category) {
         case 'total_experience': {
@@ -2175,20 +2470,36 @@ Output ONLY valid JSON decision:`;
           if (fieldType === 'radio' || fieldType === 'checkbox' || aiDecision?.decisionType === 'choice_selection') return aiDecision;
           expectedValue = isDigitsContext || isNumeric ? (pers.phoneDigits || (pers.phone || '').replace(/\D/g, '')) : (pers.phone || '');
           break;
-        case 'linkedin_url':
-          expectedValue = links.linkedin || '';
+        case 'linkedin_url': {
+          const val = links.linkedinUrl || links.linkedin || links.linkedIn || links.linkedin_url || '';
+          expectedValue = val || null;
           break;
-        case 'github_url':
-          expectedValue = links.github || '';
+        }
+        case 'github_url': {
+          const val = links.githubUrl || links.github || links.gitHub || links.github_url || '';
+          expectedValue = val || null;
           break;
-        case 'portfolio_url':
-          expectedValue = links.portfolio || '';
+        }
+        case 'portfolio_url': {
+          const val = links.portfolioUrl || links.portfolio || links.website || links.portfolio_url || links.personalWebsite || '';
+          expectedValue = val || null;
           break;
+        }
+        case 'project_demo_url': {
+          const val = links.projectDemoUrl || links.projectDemo || links.demoUrl || links.liveDemoUrl || '';
+          expectedValue = val || null;
+          break;
+        }
+        case 'resume_url': {
+          const val = links.resumeUrl || links.resume || links.cvUrl || links.resumeLink || '';
+          expectedValue = val || null;
+          break;
+        }
         default:
           break;
       }
 
-      if (expectedValue !== null && expectedValue !== undefined) {
+      if (expectedValue !== null && expectedValue !== undefined && expectedValue !== '') {
         const currentValStr = String(aiDecision?.value !== undefined && aiDecision?.value !== null ? aiDecision.value : '').trim();
         if (currentValStr !== expectedValue) {
           const targetType = (fieldType === 'radio' || fieldType === 'checkbox' || aiDecision?.decisionType === 'choice_selection')
@@ -2533,6 +2844,8 @@ Output ONLY valid JSON decision:`;
         return results;
       }
 
+      const formContext = this.extractFormContext();
+
       // Process each question through the AI decision engine
       for (let i = 0; i < containers.length; i++) {
         const container = containers[i];
@@ -2573,7 +2886,8 @@ Output ONLY valid JSON decision:`;
             questionText,
             fieldType,
             options: availableOptions,
-            profile
+            profile,
+            formContext
           });
 
           if (aiDecision && aiDecision.value !== undefined && aiDecision.value !== '') {
