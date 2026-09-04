@@ -823,8 +823,14 @@
         }
       }
 
-      // 2. Tech Stack / Skills / Languages Radio Matching
-      const isTechStackQuestion = (
+    // 2. Candidate Total Experience / Experience Bracket Matching (e.g. "How much is your Experience?", "0-1 Year", "More than 1 year")
+    const expMatch = this.matchExperienceOption(questionText, availableOptions, profile);
+    if (expMatch) {
+      return expMatch;
+    }
+
+    // 3. Tech Stack / Skills / Languages Radio Matching
+    const isTechStackQuestion = (
         normQuestion === 'tech stack' ||
         normQuestion.includes('tech stack') ||
         normQuestion.includes('technology stack') ||
@@ -971,6 +977,129 @@
     }
 
     /**
+     * Intelligently match Experience bracket choices grounded by candidate's totalExperienceYears
+     */
+    static matchExperienceOption(questionText, availableOptions, profile) {
+      if (!availableOptions || availableOptions.length === 0) return null;
+
+      // Never match binary Yes/No questions as experience brackets
+      const hasYes = availableOptions.some((o) => this.normalize(o) === 'yes');
+      const hasNo = availableOptions.some((o) => this.normalize(o) === 'no');
+      if (hasYes && hasNo) return null;
+
+      const normQ = this.normalize(questionText || '');
+      // Never match graduation, education, degree, or passing year questions as experience brackets
+      if (normQ.includes('graduat') || normQ.includes('degree') || normQ.includes('college') || normQ.includes('batch') || normQ.includes('pass out') || normQ.includes('passing year')) {
+        return null;
+      }
+
+      const looksLikeExpOptions = availableOptions.some((opt) => {
+        const n = this.normalize(opt);
+        return n.includes('year') || n.includes('yr') || n.includes('fresher') || n.includes('more than') || n.includes('less than') || /\b\d+\s*-\s*\d+\b/.test(n) || /\b\d+\+\b/.test(n);
+      });
+
+      if (!looksLikeExpOptions) return null;
+
+      const prof = profile?.professional || {};
+      const rawExp = prof.totalExperienceYears !== undefined && prof.totalExperienceYears !== null && prof.totalExperienceYears !== ''
+        ? String(prof.totalExperienceYears).trim()
+        : '0';
+      const candYears = parseFloat(rawExp) || 0;
+
+      let bestOpt = null;
+      let bestScore = -1;
+
+      for (const opt of availableOptions) {
+        const normOpt = this.normalize(opt);
+        let matches = false;
+        let score = 0;
+
+        // 1. Fresher / Zero experience checks
+        if (candYears === 0) {
+          if (normOpt.includes('fresher') || normOpt.includes('no experience') || normOpt.includes('0 year') || normOpt.includes('0 1') || normOpt.includes('0-1') || normOpt.includes('0 to 1') || normOpt.includes('< 1') || normOpt.includes('less than 1')) {
+            matches = true;
+            score = 100;
+          }
+        }
+
+        // 2. Numeric range checks (e.g. "0-1 Year", "1-2 Years", "0 to 2", "2 - 4 yrs", "0 1 year")
+        const rangeMatch = normOpt.match(/(\d+(?:\.\d+)?)\s*(?:-|to|\s)\s*(\d+(?:\.\d+)?)\s*(?:year|yr|y)/)
+          || normOpt.match(/(\d+(?:\.\d+)?)\s*(?:-|to)\s*(\d+(?:\.\d+)?)/);
+        if (rangeMatch) {
+          const min = parseFloat(rangeMatch[1]);
+          const max = parseFloat(rangeMatch[2]);
+          if (candYears >= min && candYears <= max) {
+            matches = true;
+            score = 90;
+          }
+        }
+
+        // 3. Plus / More than / Greater than checks (e.g. "More than 1 year", "1+ year", "above 2 years", "3+ years")
+        const plusMatch = normOpt.match(/(?:more than|>|above|greater than)\s*(\d+(?:\.\d+)?)/)
+          || normOpt.match(/(\d+(?:\.\d+)?)\s*(?:\+|plus|or more)/);
+        if (plusMatch) {
+          const threshold = parseFloat(plusMatch[1]);
+          if (candYears > threshold || (normOpt.includes('+') && candYears >= threshold)) {
+            matches = true;
+            score = 95;
+          }
+        }
+
+        // 4. Less than checks (e.g. "Less than 1 year", "< 1 year")
+        const lessMatch = normOpt.match(/(?:less than|<|below|under)\s*(\d+(?:\.\d+)?)/);
+        if (lessMatch) {
+          const threshold = parseFloat(lessMatch[1]);
+          if (candYears < threshold) {
+            matches = true;
+            score = 85;
+          }
+        }
+
+        // 5. Exact single number (e.g. "0", "1", "2")
+        const exactMatch = normOpt.match(/\b\d+(?:\.\d+)?\b/);
+        if (exactMatch && !rangeMatch && !plusMatch && !lessMatch) {
+          const val = parseFloat(exactMatch[0]);
+          if (Math.round(candYears) === Math.round(val)) {
+            matches = true;
+            score = 80;
+          }
+        }
+
+        if (matches && score > bestScore) {
+          bestScore = score;
+          bestOpt = opt;
+        }
+      }
+
+      if (!bestOpt && availableOptions.length > 0) {
+        const isExpQ = normQ.includes('experience') || normQ.includes('exp') || normQ.includes('how much');
+        if (!isExpQ) return null;
+
+        if (candYears <= 1) {
+          bestOpt = availableOptions.find((o) => {
+            const n = this.normalize(o);
+            return n.includes('0') || n.includes('1') || n.includes('fresher') || n.includes('less');
+          });
+        } else {
+          bestOpt = availableOptions.find((o) => {
+            const n = this.normalize(o);
+            return n.includes('more') || n.includes('+') || n.includes('above');
+          });
+        }
+        if (bestOpt) {
+          return { option: bestOpt, confidence: 0.85 };
+        }
+        return null;
+      }
+
+      if (bestOpt) {
+        return { option: bestOpt, confidence: 0.95 };
+      }
+
+      return null;
+    }
+
+    /**
      * Intelligently match Role / Position choices grounded by candidate's totalExperienceYears & target role
      */
     static matchRoleOrPositionOption(questionText, availableOptions, profile) {
@@ -1056,6 +1185,59 @@
     }
 
     /**
+     * Resolve a binary question (Yes/No) strictly based on profile facts
+     */
+    static resolveBinaryChoice(questionText, profile, fallback = 'Yes') {
+      const qNorm = this.normalize(questionText || '');
+      const prof = profile?.professional || {};
+      const edu = profile?.education || {};
+      const skills = (profile?.skills || []).map((s) => typeof s === 'object' && s !== null ? s.name : s).filter(Boolean);
+
+      // 1. Graduation completion
+      if (qNorm.includes('graduation') || qNorm.includes('graduated') || qNorm.includes('completed your graduation') || qNorm.includes('degree completed')) {
+        const gradStatus = this.normalize(edu.graduationStatus || '');
+        const gradYear = parseInt(edu.graduationYear || '0', 10);
+        const curYear = new Date().getFullYear();
+        if (gradStatus.includes('graduated') || gradStatus.includes('completed') || (gradYear > 0 && gradYear <= curYear)) {
+          return 'Yes';
+        }
+        if (gradStatus.includes('last year') || gradStatus.includes('pursuing') || (gradYear > curYear)) {
+          return 'No';
+        }
+        return 'Yes';
+      }
+
+      // 2. College attendance / Vivas / Backlog / Academic constraints
+      if (qNorm.includes('attendance requirement') || qNorm.includes('vivas') || qNorm.includes('backlog') || qNorm.includes('exam') || qNorm.includes('attendance')) {
+        return 'No';
+      }
+
+      // 3. Immediate join / Location comfort / Relocation / Shift / Commitment
+      if (qNorm.includes('immediate') || qNorm.includes('location') || qNorm.includes('relocate') || qNorm.includes('comfortable with') || qNorm.includes('shift') || qNorm.includes('wfh') || qNorm.includes('hybrid') || qNorm.includes('office') || qNorm.includes('travel') || qNorm.includes('commit') || qNorm.includes('hours daily')) {
+        const canJoin = this.normalize(prof.canJoinImmediately || 'yes');
+        return canJoin.includes('no') ? 'No' : 'Yes';
+      }
+
+      // 4. Internship / Experience in domain / Dashboards / MIS / Analytics / Tools
+      if (qNorm.includes('internship') || qNorm.includes('experience') || qNorm.includes('dashboard') || qNorm.includes('tracker') || qNorm.includes('work experience')) {
+        const expYears = parseFloat(prof.totalExperienceYears || '0');
+        if (expYears > 0) return 'Yes';
+        const normSkills = skills.map((s) => this.normalize(s));
+        if (qNorm.includes('dashboard') && (normSkills.includes('power bi') || normSkills.includes('tableau') || normSkills.includes('excel') || normSkills.includes('analytics') || normSkills.includes('react') || normSkills.includes('frontend'))) {
+          return 'Yes';
+        }
+        if (qNorm.includes('analytics') && (normSkills.includes('data analytics') || normSkills.includes('python') || normSkills.includes('sql') || normSkills.includes('analytics') || normSkills.includes('data'))) {
+          return 'Yes';
+        }
+        const projects = profile?.projects || [];
+        if (projects.length > 0) return 'Yes';
+        return fallback || 'Yes';
+      }
+
+      return fallback || 'Yes';
+    }
+
+    /**
      * Determine which Checkboxes to select
      */
     static matchCheckboxOptions(questionText, availableOptions, profile) {
@@ -1069,7 +1251,21 @@
         return [roleMatch.option];
       }
 
-      // 2. Affirmative / Negative choice checkboxes
+      // 2. Experience Bracket / Range Question formatted as checkboxes (e.g. "How much is your Experience?", ["0-1 Year", "More than 1 year"])
+      const expMatch = this.matchExperienceOption(questionText, availableOptions, profile);
+      if (expMatch && expMatch.option) {
+        return [expMatch.option];
+      }
+
+      // 3. Binary / Affirmative / Negative choice checkboxes (Yes vs No)
+      const hasYes = availableOptions.some((o) => this.normalize(o) === 'yes');
+      const hasNo = availableOptions.some((o) => this.normalize(o) === 'no');
+      if (hasYes && hasNo && availableOptions.length <= 3) {
+        const choice = this.resolveBinaryChoice(questionText, profile, 'Yes');
+        const matched = availableOptions.find((o) => this.normalize(o) === this.normalize(choice));
+        if (matched) return [matched];
+      }
+
       const isAffirmative = (
         normQ.includes('can you commit') ||
         normQ.includes('can you join immediately') ||
@@ -1091,7 +1287,7 @@
         }
       }
 
-      // 3. Technical Skills Multi-Choice Checkboxes
+      // 4. Technical Skills Multi-Choice Checkboxes
       const selected = [];
       const skillsList = (profile?.skills || []).map((s) => {
         const name = typeof s === 'object' && s !== null ? s.name : s;
@@ -1108,6 +1304,22 @@
         });
         if (isMatched && normOpt !== 'none') selected.push(opt);
       }
+
+      // Guardrail: Never return both Yes and No
+      const resHasYes = selected.some((o) => this.normalize(o) === 'yes');
+      const resHasNo = selected.some((o) => this.normalize(o) === 'no');
+      if (resHasYes && resHasNo) {
+        return selected.filter((o) => this.normalize(o) !== 'no');
+      }
+
+      // 5. Fallback: If form creator used checkboxes for single-choice questions (e.g. status, bracket, role)
+      if (selected.length === 0) {
+        const radioFallback = this.matchRadioOption(questionText, availableOptions, profile);
+        if (radioFallback && radioFallback.option) {
+          return [radioFallback.option];
+        }
+      }
+
       return selected;
     }
 
@@ -1134,6 +1346,10 @@
   // ----------------------------------------------------
   class LocalFillerService {
     static fieldChatHistory = fieldChatHistory;
+
+    static normalize(str) {
+      return LocalMatcherService.normalize(str);
+    }
 
     static extractQuestionText(containerEl) {
       if (!containerEl) return '';
@@ -1358,37 +1574,140 @@
       return true;
     }
 
+    /**
+     * Helper to locate the option row wrapper without ascending into the question header/card
+     */
+    static findOptionRow(controlEl, containerEl = null) {
+      if (!controlEl) return null;
+
+      const known = controlEl.closest ? controlEl.closest(
+        '.docssharedWizToggleLabeledContainer, .e3Duub, .N5QBN, .nWQGrd, .sg35Xc, div[data-automation-id="choiceItem"], label.ms-Checkbox-field, label.ms-Radio-field, label'
+      ) : null;
+      if (known && known !== containerEl) {
+        if (!known.querySelector || !known.querySelector('div[role="heading"], .HoPJnd')) {
+          return known;
+        }
+      }
+
+      let curr = controlEl.parentElement;
+      let candidateRow = null;
+      while (curr && curr !== containerEl) {
+        if (curr.getAttribute && curr.getAttribute('role') === 'listitem') break;
+        if (curr.classList && (curr.classList.contains('Qr7Oae') || curr.classList.contains('geS5n'))) break;
+        if (curr.querySelector && curr.querySelector('div[role="heading"], .HoPJnd')) break;
+
+        const controls = curr.querySelectorAll ? curr.querySelectorAll('div[role="checkbox"], input[type="checkbox"], div[role="radio"], input[type="radio"]') : [];
+        if (controls.length > 1) break;
+
+        candidateRow = curr;
+        curr = curr.parentElement;
+      }
+
+      return candidateRow;
+    }
+
+    static extractControlLabel(controlEl, containerEl = null) {
+      if (!controlEl) return '';
+      let labelText = '';
+
+      // 1. Direct aria-label or data-value
+      const ariaLabel = controlEl.getAttribute ? controlEl.getAttribute('aria-label') : '';
+      const dataVal = controlEl.getAttribute ? controlEl.getAttribute('data-value') : '';
+      if (ariaLabel && ariaLabel.trim()) {
+        labelText = ariaLabel.trim();
+      } else if (dataVal && dataVal.trim()) {
+        labelText = dataVal.trim();
+      }
+
+      // 2. Dedicated option row lookup
+      if (!labelText) {
+        const row = this.findOptionRow(controlEl, containerEl);
+        if (row) {
+          const specificLabelEl = row.querySelector(
+            '.M7eMe, .aDTYNe, span[dir="auto"], label, .office-form-question-choice-text, span[data-automation-id="choiceLabel"]'
+          );
+          if (specificLabelEl) {
+            labelText = (specificLabelEl.innerText || specificLabelEl.textContent || '').trim();
+          }
+          if (!labelText) {
+            labelText = (row.innerText || row.textContent || '').trim();
+          }
+        }
+      }
+
+      // 3. aria-labelledby lookup
+      if (!labelText && controlEl.getAttribute) {
+        const labelledBy = controlEl.getAttribute('aria-labelledby');
+        if (labelledBy) {
+          const ids = labelledBy.split(/\s+/).filter(Boolean);
+          const doc = containerEl?.ownerDocument || (typeof document !== 'undefined' ? document : null);
+          for (let i = ids.length - 1; i >= 0; i--) {
+            const id = ids[i];
+            const el = (doc ? doc.getElementById(id) : null) || (containerEl?.querySelector ? containerEl.querySelector(`#${id}`) : null);
+            if (el) {
+              const t = (el.innerText || el.textContent || '').trim();
+              if (t) {
+                labelText = t;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // 4. Microsoft Forms specific query
+      if (!labelText && controlEl.querySelector) {
+        const msChoiceLabel = controlEl.querySelector('span[data-automation-id="choiceLabel"], span.office-form-question-choice-text');
+        if (msChoiceLabel) {
+          labelText = (msChoiceLabel.innerText || msChoiceLabel.textContent || '').trim();
+        }
+      }
+
+      // 5. Parent / Sibling fallback
+      if (!labelText) {
+        const parent = controlEl.parentElement;
+        if (parent) {
+          const siblingSpan = parent.parentElement ? parent.parentElement.querySelector('.M7eMe, span[dir="auto"], label, .aDTYNe') : null;
+          if (siblingSpan) {
+            labelText = (siblingSpan.innerText || siblingSpan.textContent || '').trim();
+          } else {
+            labelText = (parent.innerText || parent.textContent || '').trim();
+          }
+        }
+      }
+
+      // 6. Value attribute fallback
+      if (!labelText && controlEl.value && controlEl.value !== 'on') {
+        labelText = String(controlEl.value).trim();
+      }
+
+      return labelText.replace(/[\r\n]+/g, ' ').trim();
+    }
+
     static extractRadioOptions(containerEl) {
+      if (!containerEl) return [];
       const radioElements = containerEl.querySelectorAll('div[role="radio"], input[type="radio"], div[data-automation-id="choiceItem"], label.ms-Radio-field');
       const options = [];
+
       radioElements.forEach((radio) => {
         if (radio.tagName === 'INPUT' && radio.type === 'checkbox') return;
         if (radio.getAttribute && radio.getAttribute('role') === 'checkbox') return;
 
-        const dataVal = radio.getAttribute ? radio.getAttribute('data-value') : '';
-        const ariaLabel = radio.getAttribute ? radio.getAttribute('aria-label') : '';
-        const msChoiceLabel = radio.querySelector ? radio.querySelector('span[data-automation-id="choiceLabel"], span.office-form-question-choice-text') : null;
-        let text = '';
-        if (msChoiceLabel) {
-          text = msChoiceLabel.innerText || msChoiceLabel.textContent || '';
-        } else {
-          const textContainer = radio.closest ? radio.closest('label') || radio.parentElement : radio.parentElement;
-          if (textContainer) text = textContainer.innerText || textContainer.textContent || '';
-        }
-        const finalLabel = (dataVal || ariaLabel || text || radio.value || '').trim();
+        const finalLabel = this.extractControlLabel(radio, containerEl);
         if (finalLabel && !options.some((o) => o.label === finalLabel)) {
           options.push({ element: radio, label: finalLabel });
         }
       });
+
       return options;
     }
 
-    static selectRadio(radioEl) {
+    static selectRadio(radioEl, containerEl = null) {
       if (!radioEl) return false;
       try {
         if (radioEl.tagName === 'INPUT' && radioEl.type === 'radio') {
           radioEl.checked = true;
-          radioEl.click();
+          if (radioEl.click) radioEl.click();
           radioEl.dispatchEvent(new Event('change', { bubbles: true }));
           radioEl.dispatchEvent(new Event('input', { bubbles: true }));
           return true;
@@ -1396,14 +1715,28 @@
         const isAlreadyChecked = radioEl.getAttribute && radioEl.getAttribute('aria-checked') === 'true';
         if (!isAlreadyChecked) {
           if (radioEl.focus) radioEl.focus();
-          if (radioEl.click) radioEl.click();
+
+          const rowContainer = this.findOptionRow(radioEl, containerEl);
+          const targetToClick = rowContainer || radioEl;
+          const win = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null);
+          const mouseOpts = { bubbles: true, cancelable: true, view: win, composed: true };
+
+          if (typeof MouseEvent !== 'undefined') {
+            targetToClick.dispatchEvent(new MouseEvent('mousedown', mouseOpts));
+            targetToClick.dispatchEvent(new MouseEvent('mouseup', mouseOpts));
+          }
+
+          if (targetToClick.click) {
+            targetToClick.click();
+          } else if (typeof MouseEvent !== 'undefined') {
+            targetToClick.dispatchEvent(new MouseEvent('click', mouseOpts));
+          }
+
           const innerInput = radioEl.querySelector ? radioEl.querySelector('input[type="radio"]') : null;
-          if (innerInput) {
+          if (innerInput && !innerInput.checked) {
             innerInput.checked = true;
-            innerInput.click();
             innerInput.dispatchEvent(new Event('change', { bubbles: true }));
           }
-          radioEl.dispatchEvent(new Event('click', { bubbles: true }));
           radioEl.dispatchEvent(new Event('change', { bubbles: true }));
           if (radioEl.setAttribute) radioEl.setAttribute('aria-checked', 'true');
         }
@@ -1414,33 +1747,27 @@
     }
 
     static extractCheckboxOptions(containerEl) {
+      if (!containerEl) return [];
       const checkboxElements = containerEl.querySelectorAll('div[role="checkbox"], input[type="checkbox"], label.ms-Checkbox-field');
       const options = [];
+
       checkboxElements.forEach((checkbox) => {
-        const ariaLabel = checkbox.getAttribute ? checkbox.getAttribute('aria-label') : '';
-        const msChoiceLabel = checkbox.querySelector ? checkbox.querySelector('span[data-automation-id="choiceLabel"], span.office-form-question-choice-text') : null;
-        let text = '';
-        if (msChoiceLabel) {
-          text = msChoiceLabel.innerText || msChoiceLabel.textContent || '';
-        } else {
-          const textContainer = checkbox.closest ? checkbox.closest('label') || checkbox.parentElement : checkbox.parentElement;
-          if (textContainer) text = textContainer.innerText || textContainer.textContent || '';
-        }
-        const finalLabel = (ariaLabel || text || checkbox.value || '').trim();
+        const finalLabel = this.extractControlLabel(checkbox, containerEl);
         if (finalLabel && !options.some((o) => o.label === finalLabel)) {
           options.push({ element: checkbox, label: finalLabel });
         }
       });
+
       return options;
     }
 
-    static selectCheckbox(checkboxEl) {
+    static selectCheckbox(checkboxEl, containerEl = null) {
       if (!checkboxEl) return false;
       try {
         if (checkboxEl.tagName === 'INPUT' && checkboxEl.type === 'checkbox') {
           if (!checkboxEl.checked) {
             checkboxEl.checked = true;
-            checkboxEl.click();
+            if (checkboxEl.click) checkboxEl.click();
             checkboxEl.dispatchEvent(new Event('change', { bubbles: true }));
             checkboxEl.dispatchEvent(new Event('input', { bubbles: true }));
           }
@@ -1449,14 +1776,28 @@
         const isChecked = checkboxEl.getAttribute && checkboxEl.getAttribute('aria-checked') === 'true';
         if (!isChecked) {
           if (checkboxEl.focus) checkboxEl.focus();
-          if (checkboxEl.click) checkboxEl.click();
+
+          const rowContainer = this.findOptionRow(checkboxEl, containerEl);
+          const targetToClick = rowContainer || checkboxEl;
+          const win = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null);
+          const mouseOpts = { bubbles: true, cancelable: true, view: win, composed: true };
+
+          if (typeof MouseEvent !== 'undefined') {
+            targetToClick.dispatchEvent(new MouseEvent('mousedown', mouseOpts));
+            targetToClick.dispatchEvent(new MouseEvent('mouseup', mouseOpts));
+          }
+
+          if (targetToClick.click) {
+            targetToClick.click();
+          } else if (typeof MouseEvent !== 'undefined') {
+            targetToClick.dispatchEvent(new MouseEvent('click', mouseOpts));
+          }
+
           const innerInput = checkboxEl.querySelector ? checkboxEl.querySelector('input[type="checkbox"]') : null;
           if (innerInput && !innerInput.checked) {
             innerInput.checked = true;
-            innerInput.click();
             innerInput.dispatchEvent(new Event('change', { bubbles: true }));
           }
-          checkboxEl.dispatchEvent(new Event('click', { bubbles: true }));
           checkboxEl.dispatchEvent(new Event('change', { bubbles: true }));
           if (checkboxEl.setAttribute) checkboxEl.setAttribute('aria-checked', 'true');
         }
@@ -1466,30 +1807,133 @@
       }
     }
 
+    static unselectCheckbox(checkboxEl, containerEl = null) {
+      if (!checkboxEl) return false;
+      try {
+        if (checkboxEl.tagName === 'INPUT' && checkboxEl.type === 'checkbox') {
+          if (checkboxEl.checked) {
+            checkboxEl.checked = false;
+            if (checkboxEl.click) checkboxEl.click();
+            checkboxEl.dispatchEvent(new Event('change', { bubbles: true }));
+            checkboxEl.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          return true;
+        }
+        const isChecked = checkboxEl.getAttribute && checkboxEl.getAttribute('aria-checked') === 'true';
+        if (isChecked) {
+          if (checkboxEl.focus) checkboxEl.focus();
+
+          const rowContainer = this.findOptionRow(checkboxEl, containerEl);
+          const targetToClick = rowContainer || checkboxEl;
+          const win = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null);
+          const mouseOpts = { bubbles: true, cancelable: true, view: win, composed: true };
+
+          if (typeof MouseEvent !== 'undefined') {
+            targetToClick.dispatchEvent(new MouseEvent('mousedown', mouseOpts));
+            targetToClick.dispatchEvent(new MouseEvent('mouseup', mouseOpts));
+          }
+
+          if (targetToClick.click) {
+            targetToClick.click();
+          } else if (typeof MouseEvent !== 'undefined') {
+            targetToClick.dispatchEvent(new MouseEvent('click', mouseOpts));
+          }
+
+          const innerInput = checkboxEl.querySelector ? checkboxEl.querySelector('input[type="checkbox"]') : null;
+          if (innerInput && innerInput.checked) {
+            innerInput.checked = false;
+            innerInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          checkboxEl.dispatchEvent(new Event('change', { bubbles: true }));
+          if (checkboxEl.setAttribute) checkboxEl.setAttribute('aria-checked', 'false');
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    static isDescendantOfAny(el, candidateList) {
+      if (!el || !candidateList) return false;
+      for (const other of candidateList) {
+        if (other !== el) {
+          if (typeof other.contains === 'function' && other.contains(el)) {
+            return true;
+          }
+          let curr = el.parentElement;
+          while (curr) {
+            if (curr === other) return true;
+            curr = curr.parentElement;
+          }
+        }
+      }
+      return false;
+    }
+
+    static filterTopLevelContainers(elements) {
+      if (!elements || elements.length === 0) return [];
+      const raw = Array.from(elements);
+
+      // 1. Exclude controls or elements that are strictly internal option rows
+      const nonControls = raw.filter((el) => {
+        if (!el) return false;
+        const role = el.getAttribute ? el.getAttribute('role') : null;
+        if (role === 'checkbox' || role === 'radio' || role === 'option') {
+          return false;
+        }
+        if (el.classList && (
+          el.classList.contains('e3Duub') ||
+          el.classList.contains('docssharedWizToggleLabeledContainer') ||
+          el.classList.contains('quantumWizTogglePapercheckboxEl') ||
+          el.classList.contains('quantumWizTogglePaperradioEl')
+        )) {
+          return false;
+        }
+        return true;
+      });
+
+      // 2. Exclude any element that is contained inside another candidate element
+      return nonControls.filter((el) => !this.isDescendantOfAny(el, nonControls));
+    }
+
     static findQuestionContainers(root = document) {
       // 1. Microsoft Forms containers
       const msContainers = root.querySelectorAll('div[data-automation-id="questionItem"], div[data-automation-key="questionItem"], div.office-form-question, div.question-container, div[data-automation-id="questionWrapper"]');
-      if (msContainers && msContainers.length > 0) return Array.from(msContainers);
+      if (msContainers && msContainers.length > 0) {
+        const topLevelMs = this.filterTopLevelContainers(msContainers);
+        if (topLevelMs.length > 0) return topLevelMs;
+      }
 
-      // 2. Google Forms standard containers
-      const list = root.querySelectorAll('div[role="listitem"]');
-      if (list && list.length > 0) return Array.from(list);
-      const qContainers = root.querySelectorAll('div[jsmodel="CP1oW"]');
-      if (qContainers && qContainers.length > 0) return Array.from(qContainers);
-      const altItems = root.querySelectorAll('.geS5n, .m2, .Qr7Oae');
-      if (altItems && altItems.length > 0) return Array.from(altItems);
-      const items = root.querySelectorAll('div[jscontroller="e2CuFe"], div[jscontroller="r3Nsxc"]');
-      if (items && items.length > 0) return Array.from(items);
+      // 2. Google Forms standard containers (prioritize dedicated question card wrappers)
+      const selectors = [
+        'div.Qr7Oae',
+        'div[jsmodel="CP1oW"]',
+        'div.geS5n',
+        'div.m2',
+        'div[role="listitem"]',
+        'div[jscontroller="e2CuFe"]',
+        'div[jscontroller="r3Nsxc"]'
+      ];
+
+      for (const selector of selectors) {
+        const items = root.querySelectorAll(selector);
+        if (items && items.length > 0) {
+          const topLevel = this.filterTopLevelContainers(items);
+          if (topLevel.length > 0) {
+            return topLevel;
+          }
+        }
+      }
 
       // 3. Generic Headings Fallback
       const headings = root.querySelectorAll('div[role="heading"], span[data-automation-id="questionTitle"]');
       if (headings && headings.length > 0) {
         const containers = [];
         headings.forEach((h) => {
-          const parent = h.closest('div[jscontroller], div[data-automation-id="questionItem"], div.office-form-question') || h.parentElement?.parentElement;
+          const parent = (h.closest && h.closest('div[jscontroller], div[data-automation-id="questionItem"], div.office-form-question')) || h.parentElement?.parentElement;
           if (parent && !containers.includes(parent)) containers.push(parent);
         });
-        return containers;
+        return this.filterTopLevelContainers(containers);
       }
       return [];
     }
@@ -1532,9 +1976,25 @@
       this.setProcessingState(containerEl, false);
 
       // Always resolve to the outermost question card to prevent inner/overlapping badges
-      const outerQuestion = (typeof containerEl.closest === 'function')
-        ? (containerEl.closest('div[role="listitem"], div[jsmodel], div[data-automation-id="questionItem"], .office-form-question') || containerEl)
-        : containerEl;
+      let outerQuestion = containerEl;
+      if (typeof containerEl.closest === 'function') {
+        const parentCard = containerEl.parentElement
+          ? (containerEl.parentElement.closest('div.Qr7Oae, div[jsmodel="CP1oW"], div.geS5n, div[data-automation-id="questionItem"], .office-form-question')
+             || containerEl.parentElement.closest('div[role="listitem"]'))
+          : null;
+        if (parentCard) {
+          outerQuestion = parentCard;
+        } else {
+          outerQuestion = containerEl.closest('div.Qr7Oae, div[jsmodel="CP1oW"], div.geS5n, div[data-automation-id="questionItem"], .office-form-question')
+            || containerEl.closest('div[role="listitem"]')
+            || containerEl;
+        }
+      }
+
+      // Do not attach badges or highlight to raw choice controls
+      if (outerQuestion.getAttribute && (outerQuestion.getAttribute('role') === 'checkbox' || outerQuestion.getAttribute('role') === 'radio')) {
+        return;
+      }
 
       if (matchInfo.hasConflict) {
         outerQuestion.classList.add('gfaf-conflict-highlight');
@@ -1859,7 +2319,32 @@ Output ONLY valid JSON decision:`;
           });
         };
 
-        if (llmConfig.provider === 'ollama') {
+        if (llmConfig.provider === 'builtin') {
+          // Built-in Smart Engine: instantly resolve via local matcher + profile heuristics
+          const smartMatch = LocalMatcherService.matchSmartAnswers(questionText, profile);
+          if (smartMatch && smartMatch.value) {
+            rawOutput = JSON.stringify({ decisionType: 'rag_synthesis', value: smartMatch.value, confidence: 0.95 });
+          } else if (fieldType === 'radio' && options.length > 0) {
+            const radioMatch = LocalMatcherService.matchRadioOption(questionText, options, profile);
+            if (radioMatch && radioMatch.option) {
+              rawOutput = JSON.stringify({ decisionType: 'choice_selection', value: radioMatch.option, confidence: radioMatch.confidence || 0.90 });
+            }
+          } else if (fieldType === 'checkbox' && options.length > 0) {
+            const cbMatch = LocalMatcherService.matchCheckboxOptions(questionText, options, profile);
+            if (cbMatch && cbMatch.length > 0) {
+              rawOutput = JSON.stringify({ decisionType: 'choice_selection', value: cbMatch, confidence: 0.90 });
+            }
+          } else {
+            const directMatch = LocalMatcherService.resolveMatch(questionText, profile);
+            if (directMatch && directMatch.value !== undefined && directMatch.value !== '') {
+              let val = directMatch.value;
+              if (fieldType === 'number') {
+                val = directMatch.numericValue || LocalMatcherService.extractNumericValue(val, questionText);
+              }
+              rawOutput = JSON.stringify({ decisionType: 'strict_profile', value: String(val).trim(), confidence: directMatch.confidence || 0.90 });
+            }
+          }
+        } else if (llmConfig.provider === 'ollama') {
           const endpoint = (llmConfig.ollamaEndpoint || 'http://localhost:11434').replace(/\/+$/, '');
           const rawModel = (llmConfig.ollamaModel || 'llama3.2').trim();
 
@@ -2319,6 +2804,59 @@ Output ONLY valid JSON decision:`;
     }
 
     /**
+     * Resolve a binary question (Yes/No) strictly based on profile facts
+     */
+    static resolveBinaryChoice(questionText, profile, fallback = 'Yes') {
+      const qNorm = this.normalize(questionText || '');
+      const prof = profile?.professional || {};
+      const edu = profile?.education || {};
+      const skills = (profile?.skills || []).map((s) => typeof s === 'object' && s !== null ? s.name : s).filter(Boolean);
+
+      // 1. Graduation completion
+      if (qNorm.includes('graduation') || qNorm.includes('graduated') || qNorm.includes('completed your graduation') || qNorm.includes('degree completed')) {
+        const gradStatus = this.normalize(edu.graduationStatus || '');
+        const gradYear = parseInt(edu.graduationYear || '0', 10);
+        const curYear = new Date().getFullYear();
+        if (gradStatus.includes('graduated') || gradStatus.includes('completed') || (gradYear > 0 && gradYear <= curYear)) {
+          return 'Yes';
+        }
+        if (gradStatus.includes('last year') || gradStatus.includes('pursuing') || (gradYear > curYear)) {
+          return 'No';
+        }
+        return 'Yes';
+      }
+
+      // 2. Immediate join / Location comfort / Shift
+      if (qNorm.includes('immediate') || qNorm.includes('location') || qNorm.includes('relocate') || qNorm.includes('comfortable with') || qNorm.includes('shift') || qNorm.includes('wfh') || qNorm.includes('hybrid') || qNorm.includes('office') || qNorm.includes('travel')) {
+        const canJoin = this.normalize(prof.canJoinImmediately || 'yes');
+        return canJoin.includes('no') ? 'No' : 'Yes';
+      }
+
+      // 3. College attendance / Vivas / Backlog / Academic constraints
+      if (qNorm.includes('attendance requirement') || qNorm.includes('vivas') || qNorm.includes('backlog') || qNorm.includes('exam') || qNorm.includes('attendance')) {
+        return 'No';
+      }
+
+      // 4. Internship / Experience in domain / Dashboards / MIS / Analytics
+      if (qNorm.includes('internship') || qNorm.includes('experience') || qNorm.includes('dashboard') || qNorm.includes('tracker')) {
+        const expYears = parseFloat(prof.totalExperienceYears || '0');
+        if (expYears > 0) return 'Yes';
+        const normSkills = skills.map((s) => this.normalize(s));
+        if (qNorm.includes('dashboard') && (normSkills.includes('power bi') || normSkills.includes('tableau') || normSkills.includes('excel') || normSkills.includes('analytics') || normSkills.includes('react') || normSkills.includes('frontend'))) {
+          return 'Yes';
+        }
+        if (qNorm.includes('analytics') && (normSkills.includes('data analytics') || normSkills.includes('python') || normSkills.includes('sql') || normSkills.includes('analytics') || normSkills.includes('data'))) {
+          return 'Yes';
+        }
+        const projects = profile?.projects || [];
+        if (projects.length > 0) return 'Yes';
+        return fallback || 'Yes';
+      }
+
+      return fallback || 'Yes';
+    }
+
+    /**
      * Validate and ground an AI decision against profile truth
      */
     static validateAndGroundDecision(questionText, aiDecision, profile, isNumeric = false, fieldType = 'text') {
@@ -2336,6 +2874,24 @@ Output ONLY valid JSON decision:`;
       const links = profile.links || {};
 
       let expectedValue = null;
+
+      // Mutually Exclusive / Binary Choices Grounding (Yes/No, True/False)
+      if (aiDecision?.value) {
+        if (Array.isArray(aiDecision.value)) {
+          const hasYes = aiDecision.value.some((v) => this.normalize(String(v)) === 'yes');
+          const hasNo = aiDecision.value.some((v) => this.normalize(String(v)) === 'no');
+          if (hasYes && hasNo) {
+            const resolved = this.resolveBinaryChoice(questionText, profile, 'Yes');
+            return {
+              ...aiDecision,
+              decisionType: 'choice_selection',
+              value: fieldType === 'checkbox' ? [resolved] : resolved,
+              confidence: 0.98,
+              isGrounded: true
+            };
+          }
+        }
+      }
 
       // Handle Role Selection Grounding for Multi-Choice / Checkbox / Radio
       if (category === 'role_selection' && aiDecision?.value) {
@@ -2377,6 +2933,9 @@ Output ONLY valid JSON decision:`;
 
       switch (category) {
         case 'total_experience': {
+          if (fieldType === 'radio' || fieldType === 'checkbox' || aiDecision?.decisionType === 'choice_selection') {
+            return aiDecision;
+          }
           const rawExp = prof.totalExperienceYears !== undefined && prof.totalExperienceYears !== null && prof.totalExperienceYears !== ''
             ? String(prof.totalExperienceYears).trim()
             : '0';
@@ -2500,13 +3059,13 @@ Output ONLY valid JSON decision:`;
       }
 
       if (expectedValue !== null && expectedValue !== undefined && expectedValue !== '') {
+        if (fieldType === 'radio' || fieldType === 'checkbox' || aiDecision?.decisionType === 'choice_selection') {
+          return aiDecision;
+        }
         const currentValStr = String(aiDecision?.value !== undefined && aiDecision?.value !== null ? aiDecision.value : '').trim();
         if (currentValStr !== expectedValue) {
-          const targetType = (fieldType === 'radio' || fieldType === 'checkbox' || aiDecision?.decisionType === 'choice_selection')
-            ? 'choice_selection'
-            : 'strict_profile';
           return {
-            decisionType: targetType,
+            decisionType: 'strict_profile',
             value: expectedValue,
             confidence: 0.99,
             validated: true,
@@ -2988,7 +3547,47 @@ Output ONLY valid JSON decision:`;
 
             // 3. Checkbox Options
             if (checkboxOptions.length > 0 && fieldType === 'checkbox') {
-              const selectedArray = Array.isArray(aiDecision.value) ? aiDecision.value : [aiDecision.value];
+              let selectedArray = Array.isArray(aiDecision.value) ? [...aiDecision.value] : [aiDecision.value];
+              selectedArray = selectedArray.filter((v) => v !== undefined && v !== null && String(v).trim() !== '');
+
+              // Mutually Exclusive / Binary Choices Guard (e.g. Yes vs No, True vs False)
+              const hasYes = checkboxOptions.some((o) => o.label.trim().toLowerCase() === 'yes');
+              const hasNo = checkboxOptions.some((o) => o.label.trim().toLowerCase() === 'no');
+              const isBinaryYesNo = hasYes && hasNo && checkboxOptions.length <= 3;
+
+              if (isBinaryYesNo) {
+                const selectsYes = selectedArray.some((val) => String(val).trim().toLowerCase() === 'yes');
+                const selectsNo = selectedArray.some((val) => String(val).trim().toLowerCase() === 'no');
+
+                if ((selectsYes && selectsNo) || (!selectsYes && !selectsNo)) {
+                  const resolved = this.resolveBinaryChoice(questionText, profile, 'Yes');
+                  selectedArray = [resolved];
+                }
+              }
+
+              // Experience Bracket & Mutually Exclusive Checkbox Fallback:
+              // If none of the selected labels match any available checkbox option,
+              // check if options are experience brackets or single-choice mutually exclusive categories!
+              const hasValidMatch = checkboxOptions.some((o) =>
+                selectedArray.some((chosen) =>
+                  o.label.trim().toLowerCase() === String(chosen).trim().toLowerCase() ||
+                  o.label.toLowerCase().includes(String(chosen).toLowerCase()) ||
+                  String(chosen).toLowerCase().includes(o.label.toLowerCase())
+                )
+              );
+
+              if (!hasValidMatch) {
+                const expMatch = LocalMatcherService.matchExperienceOption(questionText, availableOptions, profile);
+                if (expMatch && expMatch.option) {
+                  selectedArray = [expMatch.option];
+                } else {
+                  const radioFallback = LocalMatcherService.matchRadioOption(questionText, availableOptions, profile);
+                  if (radioFallback && radioFallback.option) {
+                    selectedArray = [radioFallback.option];
+                  }
+                }
+              }
+
               let anyChecked = false;
               const checkedLabels = [];
 
@@ -2996,9 +3595,21 @@ Output ONLY valid JSON decision:`;
                 const targetCb = checkboxOptions.find((o) => o.label.trim().toLowerCase() === String(chosenLabel).trim().toLowerCase())
                   || checkboxOptions.find((o) => o.label.toLowerCase().includes(String(chosenLabel).toLowerCase()) || String(chosenLabel).toLowerCase().includes(o.label.toLowerCase()));
 
-                if (targetCb && this.selectCheckbox(targetCb.element)) {
+                if (targetCb && this.selectCheckbox(targetCb.element, container)) {
                   anyChecked = true;
                   checkedLabels.push(targetCb.label);
+
+                  // For binary choices, uncheck opposing choice
+                  if (isBinaryYesNo) {
+                    const normTarget = targetCb.label.trim().toLowerCase();
+                    const opposingLabel = normTarget === 'yes' ? 'no' : (normTarget === 'no' ? 'yes' : null);
+                    if (opposingLabel) {
+                      const oppCb = checkboxOptions.find((o) => o.label.trim().toLowerCase() === opposingLabel);
+                      if (oppCb) {
+                        this.unselectCheckbox(oppCb.element, container);
+                      }
+                    }
+                  }
                 }
               }
 

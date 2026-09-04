@@ -22,7 +22,7 @@ globalThis.localStorage = {
 // 1. Test Default Configuration & Model Resolution
 console.log('Test 1: Testing initial LLM config retrieval...');
 const initialConfig = await LlmService.getConfig();
-if (initialConfig.provider === 'ollama' && initialConfig.ollamaModel) {
+if ((initialConfig.provider === 'builtin' || initialConfig.provider === 'ollama') && initialConfig.ollamaModel) {
   console.log(`[PASS] Default config loaded with provider: ${initialConfig.provider}, model: ${initialConfig.ollamaModel}`);
 } else {
   console.error('[FAIL] Unexpected default config:', initialConfig);

@@ -81,18 +81,26 @@ export class SecurityGuardService {
       } : {},
 
       education: typeof clean.education === 'object' && clean.education ? {
+        tenthSchoolName: String(clean.education.tenthSchoolName || '').slice(0, 150),
+        tenthPercentage: String(clean.education.tenthPercentage || clean.education.percentage10th || '').slice(0, 30),
+        tenthPercentageNumeric: String(clean.education.tenthPercentageNumeric || '').slice(0, 20),
+        twelfthSchoolName: String(clean.education.twelfthSchoolName || '').slice(0, 150),
+        twelfthPercentage: String(clean.education.twelfthPercentage || clean.education.percentage12th || '').slice(0, 30),
+        twelfthPercentageNumeric: String(clean.education.twelfthPercentageNumeric || '').slice(0, 20),
         collegeName: String(clean.education.collegeName || '').slice(0, 150),
         degree: String(clean.education.degree || '').slice(0, 100),
         branch: String(clean.education.branch || '').slice(0, 100),
         graduationYear: String(clean.education.graduationYear || '').slice(0, 20),
         graduationStatus: String(clean.education.graduationStatus || '').slice(0, 100),
         workingStatus: String(clean.education.workingStatus || '').slice(0, 100),
-        tenthPercentage: String(clean.education.tenthPercentage || clean.education.percentage10th || '').slice(0, 30),
-        tenthPercentageNumeric: String(clean.education.tenthPercentageNumeric || '').slice(0, 20),
-        twelfthPercentage: String(clean.education.twelfthPercentage || clean.education.percentage12th || '').slice(0, 30),
-        twelfthPercentageNumeric: String(clean.education.twelfthPercentageNumeric || '').slice(0, 20),
         graduationCgpa: String(clean.education.graduationCgpa || clean.education.cgpa || '').slice(0, 30),
-        graduationCgpaNumeric: String(clean.education.graduationCgpaNumeric || '').slice(0, 20)
+        graduationCgpaNumeric: String(clean.education.graduationCgpaNumeric || '').slice(0, 20),
+        pgCollegeName: String(clean.education.pgCollegeName || '').slice(0, 150),
+        pgDegree: String(clean.education.pgDegree || '').slice(0, 100),
+        pgBranch: String(clean.education.pgBranch || '').slice(0, 100),
+        pgGraduationYear: String(clean.education.pgGraduationYear || '').slice(0, 20),
+        pgGraduationStatus: String(clean.education.pgGraduationStatus || '').slice(0, 100),
+        pgCgpaNumeric: String(clean.education.pgCgpaNumeric || '').slice(0, 20)
       } : {},
 
       professional: typeof clean.professional === 'object' && clean.professional ? {
@@ -279,12 +287,12 @@ export class SecurityGuardService {
     let safeLlmConfig = null;
     if (clean.llmConfig && typeof clean.llmConfig === 'object') {
       safeLlmConfig = {
-        provider: String(clean.llmConfig.provider || 'ollama').slice(0, 30),
+        provider: String(clean.llmConfig.provider || 'builtin').slice(0, 30),
         ollamaEndpoint: String(clean.llmConfig.ollamaEndpoint || 'http://localhost:11434').slice(0, 150),
         ollamaModel: String(clean.llmConfig.ollamaModel || 'llama3.2').slice(0, 60),
-        geminiModel: String(clean.llmConfig.geminiModel || '').slice(0, 60),
-        openaiModel: String(clean.llmConfig.openaiModel || '').slice(0, 60),
-        anthropicModel: String(clean.llmConfig.anthropicModel || '').slice(0, 60)
+        geminiModel: String(clean.llmConfig.geminiModel || 'gemini-1.5-flash').slice(0, 60),
+        openaiModel: String(clean.llmConfig.openaiModel || 'gpt-4o-mini').slice(0, 60),
+        anthropicModel: String(clean.llmConfig.anthropicModel || 'claude-3-5-haiku-20241022').slice(0, 60)
       };
       if (clean.llmConfig.geminiApiKey) safeLlmConfig.geminiApiKey = String(clean.llmConfig.geminiApiKey).slice(0, 120);
       if (clean.llmConfig.openaiApiKey) safeLlmConfig.openaiApiKey = String(clean.llmConfig.openaiApiKey).slice(0, 120);
@@ -553,21 +561,21 @@ export class SecurityGuardService {
   static validateLlmConfig(config) {
     if (!config || typeof config !== 'object') {
       return {
-        provider: 'ollama',
+        provider: 'builtin',
         ollamaEndpoint: 'http://localhost:11434',
         ollamaModel: 'llama3.2',
         geminiApiKey: '',
-        geminiModel: '',
+        geminiModel: 'gemini-1.5-flash',
         openaiApiKey: '',
-        openaiModel: '',
+        openaiModel: 'gpt-4o-mini',
         anthropicApiKey: '',
-        anthropicModel: ''
+        anthropicModel: 'claude-3-5-haiku-20241022'
       };
     }
 
     const clean = this.stripPrototypePollution(config);
-    const validProviders = ['ollama', 'gemini', 'openai', 'anthropic'];
-    const provider = validProviders.includes(clean.provider) ? clean.provider : 'ollama';
+    const validProviders = ['builtin', 'ollama', 'gemini', 'openai', 'anthropic'];
+    const provider = validProviders.includes(clean.provider) ? clean.provider : 'builtin';
 
     // Validate endpoint
     let endpoint = String(clean.ollamaEndpoint || 'http://localhost:11434').trim();
@@ -593,11 +601,11 @@ export class SecurityGuardService {
       ollamaEndpoint: endpoint.slice(0, 150),
       ollamaModel: sanitizeModel(clean.ollamaModel, 'llama3.2'),
       geminiApiKey: clean.geminiApiKey ? String(clean.geminiApiKey).trim().slice(0, 120) : '',
-      geminiModel: sanitizeModel(clean.geminiModel, ''),
+      geminiModel: sanitizeModel(clean.geminiModel, 'gemini-1.5-flash'),
       openaiApiKey: clean.openaiApiKey ? String(clean.openaiApiKey).trim().slice(0, 120) : '',
-      openaiModel: sanitizeModel(clean.openaiModel, ''),
+      openaiModel: sanitizeModel(clean.openaiModel, 'gpt-4o-mini'),
       anthropicApiKey: clean.anthropicApiKey ? String(clean.anthropicApiKey).trim().slice(0, 120) : '',
-      anthropicModel: sanitizeModel(clean.anthropicModel, '')
+      anthropicModel: sanitizeModel(clean.anthropicModel, 'claude-3-5-haiku-20241022')
     };
   }
 }

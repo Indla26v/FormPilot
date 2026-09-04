@@ -64,6 +64,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         isGoogleFormTab = true;
         statusText.textContent = 'Google Form Ready';
         statusBadge.className = 'status-badge status-ready';
+      } else if (url.includes('forms.cloud.microsoft') || url.includes('forms.office.com') || url.includes('forms.microsoft.com')) {
+        isGoogleFormTab = true;
+        statusText.textContent = 'MS Form Ready';
+        statusBadge.className = 'status-badge status-ready';
       } else {
         statusText.textContent = 'Standby';
         statusBadge.style.opacity = '0.7';

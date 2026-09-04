@@ -256,6 +256,7 @@ mockRoot.appendChild(createRadioQuestion('When did you graduate?', ['I am in my 
 
 // Run scan and fill
 global.document = {
+  querySelector: (sel) => mockRoot.querySelector(sel),
   querySelectorAll: (sel) => mockRoot.querySelectorAll(sel),
   createElement: (tag) => new MockElement(tag)
 };

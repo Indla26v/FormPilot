@@ -630,7 +630,13 @@ export class FieldMatcherService {
       }
     }
 
-    // 2. Tech Stack / Language / Framework Selection Radio Matching
+    // 2. Candidate Total Experience / Experience Bracket Matching (e.g. "How much is your Experience?", "0-1 Year", "More than 1 year")
+    const expMatch = this.matchExperienceOption(questionText, availableOptions, profile);
+    if (expMatch) {
+      return expMatch;
+    }
+
+    // 3. Tech Stack / Language / Framework Selection Radio Matching
     const isTechStackQuestion = (
       normQuestion === 'tech stack' ||
       normQuestion.includes('tech stack') ||
@@ -790,6 +796,129 @@ export class FieldMatcherService {
   }
 
   /**
+   * Intelligently match Experience bracket choices grounded by candidate's totalExperienceYears
+   */
+  static matchExperienceOption(questionText, availableOptions, profile) {
+    if (!availableOptions || availableOptions.length === 0) return null;
+
+    // Never match binary Yes/No questions as experience brackets
+    const hasYes = availableOptions.some((o) => this.normalize(o) === 'yes');
+    const hasNo = availableOptions.some((o) => this.normalize(o) === 'no');
+    if (hasYes && hasNo) return null;
+
+    const normQ = this.normalize(questionText || '');
+    // Never match graduation, education, degree, or passing year questions as experience brackets
+    if (normQ.includes('graduat') || normQ.includes('degree') || normQ.includes('college') || normQ.includes('batch') || normQ.includes('pass out') || normQ.includes('passing year')) {
+      return null;
+    }
+
+    const looksLikeExpOptions = availableOptions.some((opt) => {
+      const n = this.normalize(opt);
+      return n.includes('year') || n.includes('yr') || n.includes('fresher') || n.includes('more than') || n.includes('less than') || /\b\d+\s*-\s*\d+\b/.test(n) || /\b\d+\+\b/.test(n);
+    });
+
+    if (!looksLikeExpOptions) return null;
+
+    const prof = profile?.professional || {};
+    const rawExp = prof.totalExperienceYears !== undefined && prof.totalExperienceYears !== null && prof.totalExperienceYears !== ''
+      ? String(prof.totalExperienceYears).trim()
+      : '0';
+    const candYears = parseFloat(rawExp) || 0;
+
+    let bestOpt = null;
+    let bestScore = -1;
+
+    for (const opt of availableOptions) {
+      const normOpt = this.normalize(opt);
+      let matches = false;
+      let score = 0;
+
+      // 1. Fresher / Zero experience checks
+      if (candYears === 0) {
+        if (normOpt.includes('fresher') || normOpt.includes('no experience') || normOpt.includes('0 year') || normOpt.includes('0 1') || normOpt.includes('0-1') || normOpt.includes('0 to 1') || normOpt.includes('< 1') || normOpt.includes('less than 1')) {
+          matches = true;
+          score = 100;
+        }
+      }
+
+      // 2. Numeric range checks (e.g. "0-1 Year", "1-2 Years", "0 to 2", "2 - 4 yrs", "0 1 year")
+      const rangeMatch = normOpt.match(/(\d+(?:\.\d+)?)\s*(?:-|to|\s)\s*(\d+(?:\.\d+)?)\s*(?:year|yr|y)/)
+        || normOpt.match(/(\d+(?:\.\d+)?)\s*(?:-|to)\s*(\d+(?:\.\d+)?)/);
+      if (rangeMatch) {
+        const min = parseFloat(rangeMatch[1]);
+        const max = parseFloat(rangeMatch[2]);
+        if (candYears >= min && candYears <= max) {
+          matches = true;
+          score = 90;
+        }
+      }
+
+      // 3. Plus / More than / Greater than checks (e.g. "More than 1 year", "1+ year", "above 2 years", "3+ years")
+      const plusMatch = normOpt.match(/(?:more than|>|above|greater than)\s*(\d+(?:\.\d+)?)/)
+        || normOpt.match(/(\d+(?:\.\d+)?)\s*(?:\+|plus|or more)/);
+      if (plusMatch) {
+        const threshold = parseFloat(plusMatch[1]);
+        if (candYears > threshold || (normOpt.includes('+') && candYears >= threshold)) {
+          matches = true;
+          score = 95;
+        }
+      }
+
+      // 4. Less than checks (e.g. "Less than 1 year", "< 1 year")
+      const lessMatch = normOpt.match(/(?:less than|<|below|under)\s*(\d+(?:\.\d+)?)/);
+      if (lessMatch) {
+        const threshold = parseFloat(lessMatch[1]);
+        if (candYears < threshold) {
+          matches = true;
+          score = 85;
+        }
+      }
+
+      // 5. Exact single number (e.g. "0", "1", "2")
+      const exactMatch = normOpt.match(/\b\d+(?:\.\d+)?\b/);
+      if (exactMatch && !rangeMatch && !plusMatch && !lessMatch) {
+        const val = parseFloat(exactMatch[0]);
+        if (Math.round(candYears) === Math.round(val)) {
+          matches = true;
+          score = 80;
+        }
+      }
+
+      if (matches && score > bestScore) {
+        bestScore = score;
+        bestOpt = opt;
+      }
+    }
+
+    if (!bestOpt && availableOptions.length > 0) {
+      const isExpQ = normQ.includes('experience') || normQ.includes('exp') || normQ.includes('how much');
+      if (!isExpQ) return null;
+
+      if (candYears <= 1) {
+        bestOpt = availableOptions.find((o) => {
+          const n = this.normalize(o);
+          return n.includes('0') || n.includes('1') || n.includes('fresher') || n.includes('less');
+        });
+      } else {
+        bestOpt = availableOptions.find((o) => {
+          const n = this.normalize(o);
+          return n.includes('more') || n.includes('+') || n.includes('above');
+        });
+      }
+      if (bestOpt) {
+        return { option: bestOpt, confidence: 0.85 };
+      }
+      return null;
+    }
+
+    if (bestOpt) {
+      return { option: bestOpt, confidence: 0.95 };
+    }
+
+    return null;
+  }
+
+  /**
    * Intelligently match Role / Position choices grounded by candidate's totalExperienceYears & target role
    */
   static matchRoleOrPositionOption(questionText, availableOptions, profile) {
@@ -875,6 +1004,59 @@ export class FieldMatcherService {
   }
 
   /**
+   * Resolve a binary question (Yes/No) strictly based on profile facts
+   */
+  static resolveBinaryChoice(questionText, profile, fallback = 'Yes') {
+    const qNorm = this.normalize(questionText || '');
+    const prof = profile?.professional || {};
+    const edu = profile?.education || {};
+    const skills = (profile?.skills || []).map((s) => typeof s === 'object' && s !== null ? s.name : s).filter(Boolean);
+
+    // 1. Graduation completion
+    if (qNorm.includes('graduation') || qNorm.includes('graduated') || qNorm.includes('completed your graduation') || qNorm.includes('degree completed')) {
+      const gradStatus = this.normalize(edu.graduationStatus || '');
+      const gradYear = parseInt(edu.graduationYear || '0', 10);
+      const curYear = new Date().getFullYear();
+      if (gradStatus.includes('graduated') || gradStatus.includes('completed') || (gradYear > 0 && gradYear <= curYear)) {
+        return 'Yes';
+      }
+      if (gradStatus.includes('last year') || gradStatus.includes('pursuing') || (gradYear > curYear)) {
+        return 'No';
+      }
+      return 'Yes';
+    }
+
+    // 2. College attendance / Vivas / Backlog / Academic constraints
+    if (qNorm.includes('attendance requirement') || qNorm.includes('vivas') || qNorm.includes('backlog') || qNorm.includes('exam') || qNorm.includes('attendance')) {
+      return 'No';
+    }
+
+    // 3. Immediate join / Location comfort / Relocation / Shift / Commitment
+    if (qNorm.includes('immediate') || qNorm.includes('location') || qNorm.includes('relocate') || qNorm.includes('comfortable with') || qNorm.includes('shift') || qNorm.includes('wfh') || qNorm.includes('hybrid') || qNorm.includes('office') || qNorm.includes('travel') || qNorm.includes('commit') || qNorm.includes('hours daily')) {
+      const canJoin = this.normalize(prof.canJoinImmediately || 'yes');
+      return canJoin.includes('no') ? 'No' : 'Yes';
+    }
+
+    // 4. Internship / Experience in domain / Dashboards / MIS / Analytics / Tools
+    if (qNorm.includes('internship') || qNorm.includes('experience') || qNorm.includes('dashboard') || qNorm.includes('tracker') || qNorm.includes('work experience')) {
+      const expYears = parseFloat(prof.totalExperienceYears || '0');
+      if (expYears > 0) return 'Yes';
+      const normSkills = skills.map((s) => this.normalize(s));
+      if (qNorm.includes('dashboard') && (normSkills.includes('power bi') || normSkills.includes('tableau') || normSkills.includes('excel') || normSkills.includes('analytics') || normSkills.includes('react') || normSkills.includes('frontend'))) {
+        return 'Yes';
+      }
+      if (qNorm.includes('analytics') && (normSkills.includes('data analytics') || normSkills.includes('python') || normSkills.includes('sql') || normSkills.includes('analytics') || normSkills.includes('data'))) {
+        return 'Yes';
+      }
+      const projects = profile?.projects || [];
+      if (projects.length > 0) return 'Yes';
+      return fallback || 'Yes';
+    }
+
+    return fallback || 'Yes';
+  }
+
+  /**
    * Determine which Checkboxes to select
    */
   static matchCheckboxOptions(questionText, availableOptions, profile) {
@@ -888,7 +1070,21 @@ export class FieldMatcherService {
       return [roleMatch.option];
     }
 
-    // 2. Affirmative / Negative choice checkboxes
+    // 2. Experience Bracket / Range Question formatted as checkboxes (e.g. "How much is your Experience?", ["0-1 Year", "More than 1 year"])
+    const expMatch = this.matchExperienceOption(questionText, availableOptions, profile);
+    if (expMatch && expMatch.option) {
+      return [expMatch.option];
+    }
+
+    // 3. Binary / Affirmative / Negative choice checkboxes (Yes vs No)
+    const hasYes = availableOptions.some((o) => this.normalize(o) === 'yes');
+    const hasNo = availableOptions.some((o) => this.normalize(o) === 'no');
+    if (hasYes && hasNo && availableOptions.length <= 3) {
+      const choice = this.resolveBinaryChoice(questionText, profile, 'Yes');
+      const matched = availableOptions.find((o) => this.normalize(o) === this.normalize(choice));
+      if (matched) return [matched];
+    }
+
     const isAffirmative = (
       normQ.includes('can you commit') ||
       normQ.includes('can you join immediately') ||
@@ -910,7 +1106,7 @@ export class FieldMatcherService {
       }
     }
 
-    // 3. Technical Skills Multi-Choice Checkboxes
+    // 4. Technical Skills Multi-Choice Checkboxes
     const selectedOptions = [];
     const skillsList = (profile?.skills || []).map((s) => {
       const name = typeof s === 'object' && s !== null ? s.name : s;
@@ -927,6 +1123,21 @@ export class FieldMatcherService {
       });
       if (isMatched && normOpt !== 'none') {
         selectedOptions.push(opt);
+      }
+    }
+
+    // Guardrail: Never return both Yes and No
+    const resHasYes = selectedOptions.some((o) => this.normalize(o) === 'yes');
+    const resHasNo = selectedOptions.some((o) => this.normalize(o) === 'no');
+    if (resHasYes && resHasNo) {
+      return selectedOptions.filter((o) => this.normalize(o) !== 'no');
+    }
+
+    // 5. Fallback: If form creator used checkboxes for single-choice questions (e.g. status, bracket, role)
+    if (selectedOptions.length === 0) {
+      const radioFallback = this.matchRadioOption(questionText, availableOptions, profile);
+      if (radioFallback && radioFallback.option) {
+        return [radioFallback.option];
       }
     }
 

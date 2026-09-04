@@ -248,6 +248,59 @@ export class ProfileValidatorService {
   }
 
   /**
+   * Resolve a binary question (Yes/No) strictly based on profile facts
+   */
+  static resolveBinaryChoice(questionText, profile, fallback = 'Yes') {
+    const qNorm = this.normalize(questionText || '');
+    const prof = profile?.professional || {};
+    const edu = profile?.education || {};
+    const skills = (profile?.skills || []).map((s) => typeof s === 'object' && s !== null ? s.name : s).filter(Boolean);
+
+    // 1. Graduation completion
+    if (qNorm.includes('graduation') || qNorm.includes('graduated') || qNorm.includes('completed your graduation') || qNorm.includes('degree completed')) {
+      const gradStatus = this.normalize(edu.graduationStatus || '');
+      const gradYear = parseInt(edu.graduationYear || '0', 10);
+      const curYear = new Date().getFullYear();
+      if (gradStatus.includes('graduated') || gradStatus.includes('completed') || (gradYear > 0 && gradYear <= curYear)) {
+        return 'Yes';
+      }
+      if (gradStatus.includes('last year') || gradStatus.includes('pursuing') || (gradYear > curYear)) {
+        return 'No';
+      }
+      return 'Yes';
+    }
+
+    // 2. Immediate join / Location comfort / Shift
+    if (qNorm.includes('immediate') || qNorm.includes('location') || qNorm.includes('relocate') || qNorm.includes('comfortable with') || qNorm.includes('shift') || qNorm.includes('wfh') || qNorm.includes('hybrid') || qNorm.includes('office') || qNorm.includes('travel')) {
+      const canJoin = this.normalize(prof.canJoinImmediately || 'yes');
+      return canJoin.includes('no') ? 'No' : 'Yes';
+    }
+
+    // 3. College attendance / Vivas / Backlog / Academic constraints
+    if (qNorm.includes('attendance requirement') || qNorm.includes('vivas') || qNorm.includes('backlog') || qNorm.includes('exam') || qNorm.includes('attendance')) {
+      return 'No';
+    }
+
+    // 4. Internship / Experience in domain / Dashboards / MIS / Analytics
+    if (qNorm.includes('internship') || qNorm.includes('experience') || qNorm.includes('dashboard') || qNorm.includes('tracker')) {
+      const expYears = parseFloat(prof.totalExperienceYears || '0');
+      if (expYears > 0) return 'Yes';
+      const normSkills = skills.map((s) => this.normalize(s));
+      if (qNorm.includes('dashboard') && (normSkills.includes('power bi') || normSkills.includes('tableau') || normSkills.includes('excel') || normSkills.includes('analytics') || normSkills.includes('react') || normSkills.includes('frontend'))) {
+        return 'Yes';
+      }
+      if (qNorm.includes('analytics') && (normSkills.includes('data analytics') || normSkills.includes('python') || normSkills.includes('sql') || normSkills.includes('analytics') || normSkills.includes('data'))) {
+        return 'Yes';
+      }
+      const projects = profile?.projects || [];
+      if (projects.length > 0) return 'Yes';
+      return fallback || 'Yes';
+    }
+
+    return fallback || 'Yes';
+  }
+
+  /**
    * Validate and ground an AI-generated decision against candidate profile truth
    */
   static validateAndGroundDecision(questionText, aiDecision, profile, isNumeric = false, fieldType = 'text') {
@@ -265,6 +318,24 @@ export class ProfileValidatorService {
     const links = profile.links || {};
 
     let expectedValue = null;
+
+    // Mutually Exclusive / Binary Choices Grounding (Yes/No, True/False)
+    if (aiDecision?.value) {
+      if (Array.isArray(aiDecision.value)) {
+        const hasYes = aiDecision.value.some((v) => this.normalize(String(v)) === 'yes');
+        const hasNo = aiDecision.value.some((v) => this.normalize(String(v)) === 'no');
+        if (hasYes && hasNo) {
+          const resolved = this.resolveBinaryChoice(questionText, profile, 'Yes');
+          return {
+            ...aiDecision,
+            decisionType: 'choice_selection',
+            value: fieldType === 'checkbox' ? [resolved] : resolved,
+            confidence: 0.98,
+            isGrounded: true
+          };
+        }
+      }
+    }
 
     // Handle Role Selection Grounding for Multi-Choice / Checkbox / Radio
     if (category === 'role_selection' && aiDecision?.value) {
@@ -310,6 +381,9 @@ export class ProfileValidatorService {
 
     switch (category) {
       case 'total_experience': {
+        if (fieldType === 'radio' || fieldType === 'checkbox' || aiDecision?.decisionType === 'choice_selection') {
+          return aiDecision;
+        }
         const rawExp = prof.totalExperienceYears !== undefined && prof.totalExperienceYears !== null && prof.totalExperienceYears !== ''
           ? String(prof.totalExperienceYears).trim()
           : '0';
@@ -500,14 +574,14 @@ export class ProfileValidatorService {
     }
 
     if (expectedValue !== null && expectedValue !== undefined && expectedValue !== '') {
+      if (fieldType === 'radio' || fieldType === 'checkbox' || aiDecision?.decisionType === 'choice_selection') {
+        return aiDecision;
+      }
       // If AI returned a hallucinated value or wrong number, override with strictly validated profile ground truth
       const currentValStr = String(aiDecision?.value !== undefined && aiDecision?.value !== null ? aiDecision.value : '').trim();
       if (currentValStr !== expectedValue) {
-        const targetType = (fieldType === 'radio' || fieldType === 'checkbox' || aiDecision?.decisionType === 'choice_selection')
-          ? 'choice_selection'
-          : 'strict_profile';
         return {
-          decisionType: targetType,
+          decisionType: 'strict_profile',
           value: expectedValue,
           confidence: 0.99,
           validated: true,

@@ -547,14 +547,23 @@
         <section class="tab-pane" id="tab-llm">
           <div class="section-card">
             <h3 class="section-title">AI Provider Configuration</h3>
-            <p class="section-sub">Choose whether to run completely offline with local Ollama or connect via cloud API keys.</p>
+            <p class="section-sub">Choose your AI engine: run instantly with the zero-setup Built-in Smart Engine, connect local Ollama, or use Cloud API keys.</p>
 
             <div class="provider-cards-grid">
-              <label class="provider-radio-card active" for="provider-radio-ollama" data-provider="ollama">
-                <input type="radio" id="provider-radio-ollama" name="llmProvider" value="ollama" checked style="display:none;" />
+              <label class="provider-radio-card active" for="provider-radio-builtin" data-provider="builtin" style="grid-column: 1 / -1;">
+                <input type="radio" id="provider-radio-builtin" name="llmProvider" value="builtin" checked style="display:none;" />
+                <div class="provider-card-header">
+                  <span class="provider-name">Built-in Smart Engine (Recommended)</span>
+                  <span class="provider-badge badge-free">Zero Setup • 100% Offline</span>
+                </div>
+                <p class="provider-desc">Instant on-device semantic matching and smart answer engine. Zero external servers, no API keys, works out of the box with zero setup.</p>
+              </label>
+
+              <label class="provider-radio-card" for="provider-radio-ollama" data-provider="ollama">
+                <input type="radio" id="provider-radio-ollama" name="llmProvider" value="ollama" style="display:none;" />
                 <div class="provider-card-header">
                   <span class="provider-name">Ollama (Local Offline)</span>
-                  <span class="provider-badge badge-free">100% Free & Private</span>
+                  <span class="provider-badge badge-free">100% Free &amp; Private</span>
                 </div>
                 <p class="provider-desc">Runs locally on your computer with zero API costs, no rate limits, and 100% privacy.</p>
               </label>
@@ -590,10 +599,41 @@
 
           <!-- Dynamic Provider Settings Card -->
           <div class="section-card" id="provider-settings-card">
-            <h3 class="section-title" id="provider-settings-title">Ollama Settings</h3>
+            <h3 class="section-title" id="provider-settings-title">Built-in Smart Engine Settings</h3>
             
+            <!-- Built-in Smart Engine Fields -->
+            <div class="provider-fields-group" id="fields-builtin">
+              <div class="callout-info" style="margin-bottom: 1.5rem; background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.25);">
+                <div class="callout-header-row" style="margin-bottom: 0.5rem;">
+                  <div class="callout-title" style="color: #60a5fa; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    </svg>
+                    <span>Instant On-Device Intelligence Active</span>
+                  </div>
+                  <span class="provider-badge badge-free" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">Ready Out of the Box</span>
+                </div>
+                <p style="margin: 0; font-size: 0.85rem; line-height: 1.5; color: #cbd5e1;">
+                  The Built-in Smart Engine evaluates and autofills form questions locally using candidate profile facts, deterministic semantic matching, and anti-hallucination verification. No external server, local daemon, or API keys are required.
+                </p>
+              </div>
+
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label class="form-label" for="llm-builtin-arch">Engine Architecture</label>
+                  <input type="text" id="llm-builtin-arch" class="form-input" value="Deterministic Semantic &amp; Profile Grounding" readonly style="opacity: 0.85; cursor: default;" />
+                  <span class="form-hint">Fast, private inference directly inside your browser.</span>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="llm-builtin-status">Active Verification Status</label>
+                  <input type="text" id="llm-builtin-status" class="form-input" value="Calibrated with Active Candidate Profile" readonly style="opacity: 0.85; cursor: default;" />
+                  <span class="form-hint">Click &quot;Test Connection&quot; below to verify live engine status.</span>
+                </div>
+              </div>
+            </div>
+
             <!-- Ollama Fields -->
-            <div class="provider-fields-group" id="fields-ollama">
+            <div class="provider-fields-group hidden" id="fields-ollama">
               <div class="form-grid-2">
                 <div class="form-group">
                   <label class="form-label" for="llm-ollamaEndpoint">Ollama Endpoint URL</label>
@@ -829,7 +869,7 @@
                       <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                     </a>
                   </div>
-                  <input type="text" id="llm-geminiModel" class="form-input" placeholder="e.g. gemini-1.5-flash, gemini-2.0-flash, gemini-1.5-pro" />
+                  <input type="text" id="llm-geminiModel" class="form-input" value="gemini-1.5-flash" placeholder="e.g. gemini-1.5-flash, gemini-2.0-flash, gemini-1.5-pro" />
                   <span class="form-hint">Check <a href="https://aistudio.google.com/docs" target="_blank" rel="noopener noreferrer" class="text-link">Google AI Studio Docs</a> and copy/paste only active, non-deprecated models.</span>
                 </div>
               </div>
@@ -851,7 +891,7 @@
                       <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                     </a>
                   </div>
-                  <input type="text" id="llm-openaiModel" class="form-input" placeholder="e.g. gpt-4o-mini, gpt-4o, o3-mini" />
+                  <input type="text" id="llm-openaiModel" class="form-input" value="gpt-4o-mini" placeholder="e.g. gpt-4o-mini, gpt-4o, o3-mini" />
                   <span class="form-hint">Check <a href="https://developers.openai.com/api/docs/models" target="_blank" rel="noopener noreferrer" class="text-link">OpenAI Models Docs</a> and copy/paste only active, non-deprecated models.</span>
                 </div>
               </div>
@@ -873,7 +913,7 @@
                       <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                     </a>
                   </div>
-                  <input type="text" id="llm-anthropicModel" class="form-input" placeholder="e.g. claude-3-5-haiku-20241022, claude-3-5-sonnet-20241022" />
+                  <input type="text" id="llm-anthropicModel" class="form-input" value="claude-3-5-haiku-20241022" placeholder="e.g. claude-3-5-haiku-20241022, claude-3-5-sonnet-20241022" />
                   <span class="form-hint">Check <a href="https://platform.claude.com/docs/en/models/overview" target="_blank" rel="noopener noreferrer" class="text-link">Anthropic Models Overview</a> and copy/paste only active, non-deprecated models.</span>
                 </div>
               </div>

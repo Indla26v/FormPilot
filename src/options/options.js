@@ -610,15 +610,16 @@ async function initLlmHandlers() {
   setVal('llm-ollamaEndpoint', config.ollamaEndpoint || 'http://localhost:11434');
   setVal('llm-ollamaModel', config.ollamaModel || 'llama3.2');
   setVal('llm-geminiApiKey', config.geminiApiKey || '');
-  setVal('llm-geminiModel', config.geminiModel || '');
+  setVal('llm-geminiModel', config.geminiModel || 'gemini-1.5-flash');
   setVal('llm-openaiApiKey', config.openaiApiKey || '');
-  setVal('llm-openaiModel', config.openaiModel || '');
+  setVal('llm-openaiModel', config.openaiModel || 'gpt-4o-mini');
   setVal('llm-anthropicApiKey', config.anthropicApiKey || '');
-  setVal('llm-anthropicModel', config.anthropicModel || '');
+  setVal('llm-anthropicModel', config.anthropicModel || 'claude-3-5-haiku-20241022');
 
   // Provider switcher
   const providerCards = document.querySelectorAll('.provider-radio-card');
   const providerGroups = {
+    builtin: document.getElementById('fields-builtin'),
     ollama: document.getElementById('fields-ollama'),
     gemini: document.getElementById('fields-gemini'),
     openai: document.getElementById('fields-openai'),
@@ -641,6 +642,7 @@ async function initLlmHandlers() {
     });
 
     const titles = {
+      builtin: 'Built-in Smart Engine Settings (100% Offline)',
       ollama: 'Ollama Settings (Local Offline)',
       gemini: 'Google Gemini Cloud Settings',
       openai: 'OpenAI Cloud Settings',
@@ -649,7 +651,7 @@ async function initLlmHandlers() {
     if (providerTitle) providerTitle.textContent = titles[providerName] || 'AI Provider Settings';
   }
 
-  updateProviderView(config.provider || 'ollama');
+  updateProviderView(config.provider || 'builtin');
 
   providerCards.forEach((card) => {
     card.addEventListener('click', () => {
@@ -778,17 +780,17 @@ async function initLlmHandlers() {
       testBtn.innerHTML = `<span>Testing (loading model into memory)...</span>`;
       statusBanner.classList.add('hidden');
 
-      const activeProvider = document.querySelector('.provider-radio-card.active')?.getAttribute('data-provider') || 'ollama';
+      const activeProvider = document.querySelector('.provider-radio-card.active')?.getAttribute('data-provider') || 'builtin';
       const testConfig = {
         provider: activeProvider,
         ollamaEndpoint: getVal('llm-ollamaEndpoint'),
         ollamaModel: getVal('llm-ollamaModel'),
         geminiApiKey: getVal('llm-geminiApiKey'),
-        geminiModel: getVal('llm-geminiModel'),
+        geminiModel: getVal('llm-geminiModel') || 'gemini-1.5-flash',
         openaiApiKey: getVal('llm-openaiApiKey'),
-        openaiModel: getVal('llm-openaiModel'),
+        openaiModel: getVal('llm-openaiModel') || 'gpt-4o-mini',
         anthropicApiKey: getVal('llm-anthropicApiKey'),
-        anthropicModel: getVal('llm-anthropicModel')
+        anthropicModel: getVal('llm-anthropicModel') || 'claude-3-5-haiku-20241022'
       };
 
       const result = await LlmService.testConnection(testConfig);
@@ -803,8 +805,25 @@ async function initLlmHandlers() {
           </div>
         `;
       }
+      if (!result.success && activeProvider === 'ollama') {
+        html += `
+          <div style="margin-top: 10px;">
+            <button type="button" class="pill-btn-small pill-btn-primary" id="btn-fallback-to-builtin" style="display: inline-flex; align-items: center; gap: 6px;">
+              <span>Switch to Built-in Smart Engine (Zero Setup)</span>
+            </button>
+          </div>
+        `;
+      }
       statusBanner.innerHTML = html;
       statusBanner.classList.remove('hidden');
+
+      const fallbackBtn = statusBanner.querySelector('#btn-fallback-to-builtin');
+      if (fallbackBtn) {
+        fallbackBtn.addEventListener('click', () => {
+          updateProviderView('builtin');
+          testBtn.click();
+        });
+      }
 
       testBtn.disabled = false;
       testBtn.innerHTML = `<span class="btn-icon">${ICONS.zap}</span><span>Test Connection</span>`;
@@ -815,17 +834,17 @@ async function initLlmHandlers() {
   const saveLlmBtn = document.getElementById('btn-save-llm');
   if (saveLlmBtn) {
     saveLlmBtn.addEventListener('click', async () => {
-      const activeProvider = document.querySelector('.provider-radio-card.active')?.getAttribute('data-provider') || 'ollama';
+      const activeProvider = document.querySelector('.provider-radio-card.active')?.getAttribute('data-provider') || 'builtin';
       const updatedConfig = {
         provider: activeProvider,
         ollamaEndpoint: getVal('llm-ollamaEndpoint'),
         ollamaModel: getVal('llm-ollamaModel'),
         geminiApiKey: getVal('llm-geminiApiKey'),
-        geminiModel: getVal('llm-geminiModel'),
+        geminiModel: getVal('llm-geminiModel') || 'gemini-1.5-flash',
         openaiApiKey: getVal('llm-openaiApiKey'),
-        openaiModel: getVal('llm-openaiModel'),
+        openaiModel: getVal('llm-openaiModel') || 'gpt-4o-mini',
         anthropicApiKey: getVal('llm-anthropicApiKey'),
-        anthropicModel: getVal('llm-anthropicModel')
+        anthropicModel: getVal('llm-anthropicModel') || 'claude-3-5-haiku-20241022'
       };
 
       await LlmService.saveConfig(updatedConfig);

@@ -26,7 +26,13 @@ class MockElement {
   querySelector(sel) {
     if (sel.startsWith('.')) {
       const cls = sel.slice(1);
-      return this.children.find((c) => c.classList && c.classList.has(cls)) || null;
+      for (const child of this.children) {
+        if ((child.classList && child.classList.has(cls)) || (child.className && child.className.split(' ').includes(cls))) return child;
+        if (child.querySelector) {
+          const found = child.querySelector(sel);
+          if (found) return found;
+        }
+      }
     }
     return null;
   }
